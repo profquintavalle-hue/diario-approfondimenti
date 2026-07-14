@@ -188,6 +188,8 @@
   .btn-export.secondario{ background:transparent; border:1px solid var(--bordo); color:var(--inchiostro-tenue); }
   .btn-export.secondario:hover{ border-color:var(--prugna); color:var(--prugna); }
   .nota-export{ font-size:0.76rem; color:var(--inchiostro-tenue); }
+  .check-date{ display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--inchiostro-tenue); cursor:pointer; }
+  .check-date input{ cursor:pointer; }
 
   .aggiungi-modulo-manuale{
     margin-bottom:18px; padding:9px 14px; border-radius:8px; border:1px dashed var(--bordo);
@@ -374,7 +376,9 @@ function renderMain(){
     <div class="barra-export">
       <button class="btn-export" id="btn-export-rtf">⤓ Esporta per la relazione (Word/Pages)</button>
       <button class="btn-export secondario" id="btn-export-txt">⤓ Esporta come testo semplice</button>
-      <span class="nota-export">Genera moduli e approfondimenti già strutturati, pronti da incollare.</span>
+      <label class="check-date" title="Se disattivato, il documento finale non riporta le date accanto agli approfondimenti (utile per la relazione finale, dove di solito non servono).">
+        <input type="checkbox" id="check-includi-date"> includi le date nel report
+      </label>
     </div>
   `;
 
@@ -398,8 +402,11 @@ function renderMain(){
     classe.moduli.push({ id: idCasuale(), nome:'Nuovo modulo', voci: [] });
     salvaDati(); render();
   });
-  document.getElementById('btn-export-rtf').addEventListener('click', ()=> esportaRelazioneRTF(classe));
-  document.getElementById('btn-export-txt').addEventListener('click', ()=> esportaRelazioneTXT(classe));
+  const chkDate = document.getElementById('check-includi-date');
+  chkDate.checked = localStorage.getItem('diario_includi_date') === 'si';
+  chkDate.addEventListener('change', e=>{ localStorage.setItem('diario_includi_date', e.target.checked ? 'si' : 'no'); });
+  document.getElementById('btn-export-rtf').addEventListener('click', ()=> esportaRelazioneRTF(classe, chkDate.checked));
+  document.getElementById('btn-export-txt').addEventListener('click', ()=> esportaRelazioneTXT(classe, chkDate.checked));
 
   renderModuli(classe);
 }
@@ -492,7 +499,7 @@ function rtfEscape(s){
     .replace(/[\u0080-\uffff]/g, c => '\\u' + c.charCodeAt(0) + '?');
 }
 
-function esportaRelazioneRTF(classe){
+function esportaRelazioneRTF(classe, includiDate){
   let rtf = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1040{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}}\n\\f0\\fs22\n';
   rtf += '{\\pard\\b\\fs32 ' + rtfEscape(classe.nome) + '\\par}\n';
   if(classe.anno) rtf += '{\\pard\\fs20\\sa240 Attività, letture e approfondimenti svolti \\emdash a.s. ' + rtfEscape(classe.anno) + '\\par}\n';
@@ -506,7 +513,7 @@ function esportaRelazioneRTF(classe){
     } else {
       const vociOrdinate = voci.slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
       vociOrdinate.forEach(v=>{
-        const data = v.data ? rtfEscape(formattaDataEstesa(v.data)) + ' \\endash  ' : '';
+        const data = (includiDate && v.data) ? rtfEscape(formattaDataEstesa(v.data)) + ' \\endash  ' : '';
         rtf += '{\\pard\\fi-280\\li280\\sa60 \\bullet\\tab ' + data + rtfEscape(v.testo.trim()) + '\\par}\n';
       });
     }
@@ -514,10 +521,10 @@ function esportaRelazioneRTF(classe){
   rtf += '}';
 
   scaricaFile(rtf, nomeFileClasse(classe,'rtf'), 'application/rtf');
-  mostraNotaBackup('Relazione esportata per ' + classe.nome + '.', 'ok');
+  mostraNotaBackup('Relazione esportata per ' + classe.nome + (includiDate ? ' (con date).' : ' (senza date).'), 'ok');
 }
 
-function esportaRelazioneTXT(classe){
+function esportaRelazioneTXT(classe, includiDate){
   let txt = classe.nome.toUpperCase() + '\n';
   txt += (classe.anno ? 'Attività, letture e approfondimenti svolti — a.s. ' + classe.anno : 'Attività, letture e approfondimenti svolti') + '\n\n';
   classe.moduli.forEach((m,i)=>{
@@ -526,13 +533,13 @@ function esportaRelazioneTXT(classe){
       .slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
     if(voci.length===0){ txt += '   (nessun approfondimento registrato)\n'; }
     else voci.forEach(v=>{
-      const data = v.data ? formattaDataEstesa(v.data) + ' – ' : '';
+      const data = (includiDate && v.data) ? formattaDataEstesa(v.data) + ' – ' : '';
       txt += '   • ' + data + v.testo.trim() + '\n';
     });
     txt += '\n';
   });
   scaricaFile(txt, nomeFileClasse(classe,'txt'), 'text/plain');
-  mostraNotaBackup('Testo esportato per ' + classe.nome + '.', 'ok');
+  mostraNotaBackup('Testo esportato per ' + classe.nome + (includiDate ? ' (con date).' : ' (senza date).'), 'ok');
 }
 
 function scaricaFile(contenuto, nome, tipo){
