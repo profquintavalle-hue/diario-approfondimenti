@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diario degli approfondimenti</title>
+<style>
+  :root{
+    --carta: #F7F2E6;
+    --carta-alt: #EFE7D6;
+    --inchiostro: #2B241C;
+    --inchiostro-tenue: #6B5F4E;
+    --bordo: #D9CBAE;
+    --prugna: #6E3B54;      /* accento identitario diverso dal pianificatore (teal) */
+    --prugna-chiaro: #8E5570;
+    --verde: #5A6E3A;
+    --ambra: #B8863B;
+    --ruggine: #B3492A;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--carta);
+    color:var(--inchiostro);
+    font-family:-apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    min-height:100vh;
+  }
+  h1,h2,h3{ font-family:Georgia, "Iowan Old Style", serif; font-weight:600; margin:0; }
+
+  .app{ display:grid; grid-template-columns:270px 1fr; min-height:100vh; }
+  .sidebar{
+    background:var(--carta-alt);
+    border-right:1px solid var(--bordo);
+    padding:24px 16px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .sidebar h1{ font-size:1.15rem; color:var(--prugna); margin-bottom:2px; }
+  .sidebar .sottotitolo{ font-size:0.75rem; color:var(--inchiostro-tenue); margin-bottom:18px; line-height:1.4; }
+  .tab-classe{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:9px 12px; border-radius:8px; cursor:pointer;
+    font-size:0.88rem; border:1px solid transparent; color:var(--inchiostro);
+  }
+  .tab-classe:hover{ background:rgba(110,59,84,0.08); }
+  .tab-classe.attivo{ background:var(--carta); border-color:var(--bordo); font-weight:600; color:var(--prugna); }
+  .tab-classe .elimina-tab{ opacity:0; color:var(--ruggine); font-size:0.8rem; padding:2px 6px; border-radius:4px; }
+  .tab-classe:hover .elimina-tab{ opacity:0.7; }
+  .tab-classe .elimina-tab:hover{ opacity:1; background:rgba(179,73,42,0.12); }
+  .btn-nuova-classe{
+    margin-top:10px; padding:9px 12px; border-radius:8px;
+    border:1px dashed var(--bordo); background:transparent;
+    color:var(--inchiostro-tenue); cursor:pointer; font-size:0.85rem; text-align:left;
+  }
+  .btn-nuova-classe:hover{ border-color:var(--prugna); color:var(--prugna); }
+
+  .sezione-backup{ margin-top:18px; padding-top:18px; border-top:1px solid var(--bordo); display:flex; flex-direction:column; gap:8px; }
+  .sezione-sync{ margin-top:auto; padding-top:18px; border-top:1px solid var(--bordo); display:flex; flex-direction:column; gap:8px; }
+  .titolo-backup{ font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--inchiostro-tenue); font-weight:600; }
+  .btn-backup{ padding:8px 12px; border-radius:8px; border:1px solid var(--bordo); background:var(--carta); color:var(--inchiostro); cursor:pointer; font-size:0.82rem; text-align:left; font-family:inherit; }
+  .btn-backup:hover{ border-color:var(--prugna); color:var(--prugna); }
+  .nota-backup{ font-size:0.7rem; color:var(--inchiostro-tenue); line-height:1.4; }
+  .nota-backup.ok{ color:var(--verde); font-weight:600; }
+  .nota-backup.errore{ color:var(--ruggine); font-weight:600; }
+
+  .pannello-rapido{ margin-top:8px; border:1px solid var(--bordo); border-radius:8px; padding:10px 12px; background:var(--carta); }
+  .pannello-rapido summary{ cursor:pointer; font-size:0.82rem; font-weight:600; color:var(--prugna); outline:none; }
+  .pannello-rapido[open] summary{ margin-bottom:10px; }
+  .rapido-intro{ font-size:0.72rem; color:var(--inchiostro-tenue); line-height:1.4; margin-bottom:10px; }
+  .rapido-gruppo{ margin-bottom:8px; }
+  .rapido-etichetta{ font-size:0.68rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--inchiostro-tenue); display:block; margin-bottom:4px; }
+  .rapido-chips{ display:flex; flex-wrap:wrap; gap:4px; }
+  .rapido-chip{ padding:4px 9px; border-radius:14px; border:1px solid var(--bordo); font-size:0.76rem; cursor:pointer; color:var(--inchiostro-tenue); user-select:none; }
+  .rapido-chip.attivo{ background:var(--prugna); border-color:var(--prugna); color:var(--carta); }
+  .rapido-input{ width:100%; margin:4px 0 8px; padding:7px 9px; border:1px solid var(--bordo); border-radius:6px; font-size:0.82rem; font-family:inherit; background:var(--carta); color:var(--inchiostro); }
+  .rapido-input:focus{ outline:none; border-color:var(--prugna); }
+  .btn-rapido-crea{ width:100%; padding:8px; border-radius:7px; border:none; background:var(--prugna); color:var(--carta); cursor:pointer; font-size:0.8rem; }
+  .btn-rapido-crea:hover{ background:var(--prugna-chiaro); }
+  .rapido-esito{ font-size:0.72rem; margin-top:6px; min-height:1em; }
+
+  .sync-stato{ display:flex; align-items:center; gap:7px; font-size:0.76rem; color:var(--inchiostro-tenue); }
+  .sync-pallino{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .sync-pallino.grigio{ background:#B9AD96; }
+  .sync-pallino.verde{ background:var(--verde); }
+  .sync-pallino.giallo{ background:var(--ambra); }
+  .sync-pallino.rosso{ background:var(--ruggine); }
+  .sync-pallino.spin{ background:var(--ambra); animation:pulsa 1s ease-in-out infinite; }
+  @keyframes pulsa{ 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .pannello-token{ display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid var(--bordo); border-radius:8px; background:var(--carta-alt); }
+  .token-guida{ font-size:0.72rem; color:var(--inchiostro-tenue); line-height:1.4; }
+  .pannello-token input{ padding:7px 9px; border:1px solid var(--bordo); border-radius:6px; font-size:0.8rem; font-family:ui-monospace, monospace; background:var(--carta); color:var(--inchiostro); }
+  .pannello-token input:focus{ outline:none; border-color:var(--prugna); }
+  .token-azioni{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .btn-token-salva{ padding:7px 12px; border-radius:6px; border:none; background:var(--prugna); color:var(--carta); cursor:pointer; font-size:0.78rem; }
+  .btn-token-salva:hover{ background:var(--prugna-chiaro); }
+  .token-link{ font-size:0.72rem; color:var(--prugna); text-decoration:none; white-space:nowrap; }
+  .token-link:hover{ text-decoration:underline; }
+  .btn-token-rimuovi{ padding:6px; border-radius:6px; border:1px solid var(--bordo); background:transparent; color:var(--ruggine); cursor:pointer; font-size:0.74rem; }
+  .btn-token-rimuovi:hover{ background:rgba(179,73,42,0.08); }
+
+  .main{ padding:30px 40px 70px; overflow-x:hidden; }
+  .vuoto{ display:flex; flex-direction:column; align-items:center; justify-content:center; height:72vh; color:var(--inchiostro-tenue); text-align:center; gap:12px; max-width:520px; margin:0 auto; }
+  .vuoto h2{ color:var(--prugna); }
+  .vuoto button{ margin-top:8px; padding:10px 20px; border-radius:8px; border:none; background:var(--prugna); color:var(--carta); cursor:pointer; font-size:0.9rem; }
+
+  .intestazione{ display:flex; align-items:baseline; gap:12px; margin-bottom:4px; flex-wrap:wrap; }
+  .intestazione input[type=text]{
+    font-family:Georgia, serif; font-size:1.5rem; font-weight:600; color:var(--prugna);
+    border:none; background:transparent; padding:2px 4px; border-bottom:1px solid transparent; min-width:220px;
+  }
+  .intestazione input[type=text]:focus{ outline:none; border-bottom:1px solid var(--bordo); }
+  .sotto-intestazione{ font-size:0.82rem; color:var(--inchiostro-tenue); margin-bottom:24px; }
+
+  .pannello-incolla{
+    background:var(--carta); border:1px solid var(--bordo); border-radius:10px; padding:18px 20px; margin-bottom:24px;
+  }
+  .pannello-incolla summary{ cursor:pointer; font-family:Georgia, serif; font-weight:600; color:var(--prugna); font-size:0.98rem; outline:none; }
+  .pannello-incolla[open] summary{ margin-bottom:12px; }
+  .pannello-incolla p{ font-size:0.82rem; color:var(--inchiostro-tenue); line-height:1.5; margin:0 0 10px; }
+  .pannello-incolla textarea{
+    width:100%; min-height:130px; border:1px solid var(--bordo); border-radius:8px; padding:10px 12px;
+    font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:0.82rem; color:var(--inchiostro); background:var(--carta-alt); resize:vertical; line-height:1.5;
+  }
+  .pannello-incolla textarea:focus{ outline:none; border-color:var(--prugna); }
+  .riga-incolla-azioni{ display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .btn-incolla{ padding:8px 16px; border-radius:7px; border:none; background:var(--prugna); color:var(--carta); cursor:pointer; font-size:0.85rem; }
+  .btn-incolla:hover{ background:var(--prugna-chiaro); }
+  .btn-incolla.secondario{ background:transparent; border:1px solid var(--bordo); color:var(--inchiostro-tenue); }
+  .btn-incolla.secondario:hover{ border-color:var(--prugna); color:var(--prugna); }
+  .avviso-incolla{ font-size:0.8rem; color:var(--inchiostro-tenue); }
+
+  /* moduli come schede-diario */
+  .modulo-scheda{
+    background:var(--carta); border:1px solid var(--bordo); border-radius:12px;
+    margin-bottom:18px; overflow:hidden;
+  }
+  .modulo-testa{
+    display:flex; align-items:center; gap:12px; padding:14px 18px;
+    background:linear-gradient(0deg, rgba(110,59,84,0.04), rgba(110,59,84,0.04)), var(--carta);
+    border-bottom:1px solid var(--bordo);
+  }
+  .modulo-numero{
+    flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--prugna); color:var(--carta);
+    display:flex; align-items:center; justify-content:center; font-size:0.78rem; font-weight:700;
+    font-family:Georgia, serif;
+  }
+  .modulo-titolo{
+    flex:1; font-family:Georgia, serif; font-size:1.05rem; font-weight:600; color:var(--inchiostro);
+    border:1px solid transparent; background:transparent; padding:4px 6px; border-radius:6px;
+  }
+  .modulo-titolo:hover, .modulo-titolo:focus{ border-color:var(--bordo); background:var(--carta-alt); outline:none; }
+  .modulo-conteggio{ font-size:0.74rem; color:var(--inchiostro-tenue); white-space:nowrap; }
+  .modulo-azioni{ display:flex; gap:2px; }
+  .icona-btn{ background:none; border:none; cursor:pointer; color:var(--inchiostro-tenue); font-size:0.95rem; padding:4px 7px; border-radius:6px; }
+  .icona-btn:hover{ background:var(--carta-alt); color:var(--inchiostro); }
+  .icona-btn.elimina:hover{ color:var(--ruggine); }
+
+  .modulo-corpo{ padding:6px 18px 14px; }
+  .voce-appro{
+    display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid rgba(217,203,174,0.5);
+  }
+  .voce-appro:last-of-type{ border-bottom:none; }
+  .voce-data{ flex:0 0 auto; display:flex; flex-direction:column; gap:3px; }
+  .voce-data input[type=date]{
+    border:1px solid var(--bordo); border-radius:6px; padding:5px 7px; font-size:0.78rem; font-family:inherit; background:var(--carta); color:var(--inchiostro);
+  }
+  .voce-testo{ flex:1; }
+  .voce-testo textarea{
+    width:100%; min-height:38px; border:1px solid transparent; background:transparent; border-radius:6px;
+    padding:6px 8px; font-size:0.9rem; font-family:inherit; color:var(--inchiostro); resize:vertical; line-height:1.45;
+  }
+  .voce-testo textarea:hover, .voce-testo textarea:focus{ border-color:var(--bordo); background:var(--carta-alt); outline:none; }
+  .voce-testo textarea::placeholder{ color:var(--inchiostro-tenue); opacity:0.7; }
+  .voce-elimina{ flex:0 0 auto; }
+
+  .btn-aggiungi-voce{
+    margin-top:8px; padding:7px 14px; border-radius:7px; border:1px dashed var(--bordo);
+    background:transparent; color:var(--inchiostro-tenue); cursor:pointer; font-size:0.82rem;
+  }
+  .btn-aggiungi-voce:hover{ border-color:var(--prugna); color:var(--prugna); }
+
+  .barra-export{
+    position:sticky; bottom:0; margin-top:26px; padding:16px 0 0;
+    display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    border-top:1px solid var(--bordo); background:linear-gradient(0deg, var(--carta) 70%, transparent);
+  }
+  .btn-export{ padding:10px 18px; border-radius:8px; border:none; background:var(--prugna); color:var(--carta); cursor:pointer; font-size:0.9rem; }
+  .btn-export:hover{ background:var(--prugna-chiaro); }
+  .btn-export.secondario{ background:transparent; border:1px solid var(--bordo); color:var(--inchiostro-tenue); }
+  .btn-export.secondario:hover{ border-color:var(--prugna); color:var(--prugna); }
+  .nota-export{ font-size:0.76rem; color:var(--inchiostro-tenue); }
+
+  .aggiungi-modulo-manuale{
+    margin-bottom:18px; padding:9px 14px; border-radius:8px; border:1px dashed var(--bordo);
+    background:transparent; color:var(--inchiostro-tenue); cursor:pointer; font-size:0.85rem;
+  }
+  .aggiungi-modulo-manuale:hover{ border-color:var(--prugna); color:var(--prugna); }
+
+  @media (max-width:720px){
+    .app{ grid-template-columns:1fr; }
+    .sidebar{ border-right:none; border-bottom:1px solid var(--bordo); }
+    .main{ padding:22px 18px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <h1>Diario degli approfondimenti</h1>
+    <div class="sottotitolo">Letture, video, seminari e attività svolte, per la relazione finale.</div>
+    <div id="lista-tab"></div>
+    <button class="btn-nuova-classe" id="btn-nuova-classe">+ nuova classe / materia</button>
+    <details class="pannello-rapido" id="pannello-classi-rapide">
+      <summary>Aggiungi classi rapidamente</summary>
+      <div class="rapido-intro">Scegli gli anni e le sezioni, poi la materia: crea tutte le combinazioni in un colpo.</div>
+      <div class="rapido-gruppo"><span class="rapido-etichetta">Anno</span><div class="rapido-chips" id="rapido-anni"></div></div>
+      <div class="rapido-gruppo"><span class="rapido-etichetta">Sezione</span><div class="rapido-chips" id="rapido-sezioni"></div></div>
+      <input type="text" id="rapido-materia-input" class="rapido-input" placeholder="Materia (es. Filosofia, Storia)">
+      <button class="btn-rapido-crea" id="btn-rapido-crea">+ crea le classi selezionate</button>
+      <div class="rapido-esito" id="rapido-esito"></div>
+    </details>
+    <div class="sezione-sync">
+      <div class="titolo-backup">Sincronizzazione cloud</div>
+      <div class="sync-stato" id="sync-stato"><span class="sync-pallino grigio"></span><span id="sync-testo">Non configurata</span></div>
+      <button class="btn-backup" id="btn-config-sync">⚙ Configura sincronizzazione</button>
+      <button class="btn-backup" id="btn-sync-ora" style="display:none;">↻ Sincronizza ora</button>
+      <div class="pannello-token" id="pannello-token" style="display:none;">
+        <div class="token-guida">Incolla il token GitHub con permesso <b>gist</b>. Serve solo la prima volta.</div>
+        <input type="password" id="input-token" placeholder="ghp_..." autocomplete="off">
+        <div class="token-azioni">
+          <button class="btn-token-salva" id="btn-salva-token">Salva e sincronizza</button>
+          <a class="token-link" href="https://github.com/settings/tokens/new?scopes=gist&description=DiarioApprofondimenti" target="_blank" rel="noopener">crea un token →</a>
+        </div>
+        <button class="btn-token-rimuovi" id="btn-rimuovi-token" style="display:none;">Disconnetti il cloud</button>
+      </div>
+    </div>
+    <div class="sezione-backup">
+      <div class="titolo-backup">Backup su file</div>
+      <button class="btn-backup" id="btn-esporta-backup">⤓ Salva backup su file</button>
+      <button class="btn-backup" id="btn-importa-backup">⤒ Ripristina da file</button>
+      <input type="file" id="input-file-backup" accept=".json,application/json" style="display:none">
+      <div class="nota-backup" id="nota-backup">Il cloud tiene tutto sincronizzato; il backup su file è una rete di sicurezza extra.</div>
+    </div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<script>
+const CHIAVE_STORAGE = 'diario_approfondimenti_v1';
+const CHIAVE_TOKEN = 'diario_gist_token';
+const CHIAVE_GIST_ID = 'diario_gist_id';
+const GIST_FILENAME = 'diario_approfondimenti.json';
+const MESI_LABEL = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+
+let ultimaModifica = 0, ultimoBackup = 0;
+let timerSync = null;
+
+function idCasuale(){ return Math.random().toString(36).slice(2,9); }
+
+function caricaDati(){
+  try{ const raw = localStorage.getItem(CHIAVE_STORAGE); if(raw) return JSON.parse(raw); }
+  catch(e){ console.error(e); }
+  return { classi: [], classeAttiva: null };
+}
+function salvaDati(){
+  localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(stato));
+  ultimaModifica = Date.now();
+  programmaSync();
+}
+// Sincronizza sul cloud poco dopo l'ultima modifica, accorpando modifiche ravvicinate.
+function programmaSync(){
+  if(!localStorage.getItem(CHIAVE_TOKEN)) return;
+  clearTimeout(timerSync);
+  timerSync = setTimeout(()=> sincronizzaConGist(false), 1500);
+}
+let stato = caricaDati();
+
+function classeCorrente(){ return stato.classi.find(c => c.id === stato.classeAttiva) || null; }
+
+function nuovaClasse(){
+  const c = { id: idCasuale(), nome: 'Nuova classe / materia', anno: annoScolasticoCorrente(), moduli: [] };
+  stato.classi.push(c);
+  stato.classeAttiva = c.id;
+  salvaDati(); render();
+}
+
+function annoScolasticoCorrente(){
+  const oggi = new Date();
+  const anno = oggi.getFullYear();
+  // l'anno scolastico "cambia" a settembre
+  return oggi.getMonth() >= 8 ? anno + '/' + (anno+1) : (anno-1) + '/' + anno;
+}
+
+function eliminaClasse(id, ev){
+  ev.stopPropagation();
+  if(!confirm('Eliminare questa classe e tutti i suoi approfondimenti? Non si può annullare.')) return;
+  stato.classi = stato.classi.filter(c => c.id !== id);
+  if(stato.classeAttiva === id) stato.classeAttiva = stato.classi.length ? stato.classi[0].id : null;
+  salvaDati(); render();
+}
+
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+
+function formattaDataEstesa(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-').map(Number);
+  return d + ' ' + MESI_LABEL[m-1] + ' ' + y;
+}
+
+// ---------- Import moduli da testo incollato ----------
+function importaModuli(classe, testo, sostituisci){
+  const righe = testo.split('\n')
+    .map(r => r.replace(/^\s*[\-\u2022\d\.\)]+\s*/, '').trim()) // togli bullet/numeri iniziali
+    .filter(r => r.length > 0);
+  if(righe.length === 0) return 0;
+  const nuovi = righe.map(nome => ({ id: idCasuale(), nome, voci: [] }));
+  if(sostituisci) classe.moduli = nuovi;
+  else classe.moduli = classe.moduli.concat(nuovi);
+  salvaDati();
+  return nuovi.length;
+}
+
+// ---------- Rendering ----------
+function render(){ renderSidebar(); renderMain(); }
+
+function renderSidebar(){
+  const cont = document.getElementById('lista-tab');
+  cont.innerHTML = '';
+  stato.classi.forEach(c => {
+    const tab = document.createElement('div');
+    tab.className = 'tab-classe' + (c.id===stato.classeAttiva ? ' attivo':'');
+    tab.innerHTML = `<span>${escapeHtml(c.nome)}</span><span class="elimina-tab" title="Elimina">✕</span>`;
+    tab.addEventListener('click', ()=>{ stato.classeAttiva = c.id; salvaDati(); render(); });
+    tab.querySelector('.elimina-tab').addEventListener('click', ev=>eliminaClasse(c.id, ev));
+    cont.appendChild(tab);
+  });
+}
+
+function renderMain(){
+  const main = document.getElementById('main');
+  const classe = classeCorrente();
+  if(!classe){
+    main.innerHTML = `<div class="vuoto">
+      <h2>Il diario è vuoto</h2>
+      <div>Crea una classe/materia, poi incolla l'elenco dei suoi moduli (li trovi già pronti nei tuoi siti o nel pianificatore). Durante l'anno aggiungi sotto ciascun modulo le letture, i video, i seminari e le attività svolte. A giugno esporti tutto, già strutturato per la relazione finale.</div>
+      <button id="btn-vuoto-nuova">+ crea la prima classe</button>
+    </div>`;
+    document.getElementById('btn-vuoto-nuova').addEventListener('click', nuovaClasse);
+    return;
+  }
+
+  const nVoci = classe.moduli.reduce((s,m)=>s+m.voci.length, 0);
+  main.innerHTML = `
+    <div class="intestazione">
+      <input type="text" id="input-nome" value="${escapeHtml(classe.nome)}" placeholder="Es. Filosofia 3C">
+      <input type="text" id="input-anno" value="${escapeHtml(classe.anno||'')}" placeholder="a.s. 2026/2027" style="font-size:0.95rem; color:var(--inchiostro-tenue); min-width:150px;">
+    </div>
+    <div class="sotto-intestazione">${classe.moduli.length} moduli · ${nVoci} ${nVoci===1?'approfondimento registrato':'approfondimenti registrati'}</div>
+
+    <details class="pannello-incolla" id="pannello-incolla" ${classe.moduli.length===0 ? 'open':''}>
+      <summary>Incolla o aggiorna l'elenco dei moduli</summary>
+      <p>Incolla qui i moduli previsti, <b>uno per riga</b>. Eventuali trattini, puntini o numeri all'inizio riga vengono tolti automaticamente. Puoi aggiungerli a quelli esistenti o sostituirli del tutto.</p>
+      <textarea id="area-incolla" placeholder="Presocratici&#10;Socrate e i sofisti&#10;Platone&#10;Aristotele&#10;..."></textarea>
+      <div class="riga-incolla-azioni">
+        <button class="btn-incolla" id="btn-aggiungi-moduli">Aggiungi come moduli</button>
+        <button class="btn-incolla secondario" id="btn-sostituisci-moduli">Sostituisci tutti i moduli</button>
+        <span class="avviso-incolla" id="avviso-incolla"></span>
+      </div>
+    </details>
+
+    <button class="aggiungi-modulo-manuale" id="btn-modulo-manuale">+ aggiungi un singolo modulo a mano</button>
+
+    <div id="lista-moduli"></div>
+
+    <div class="barra-export">
+      <button class="btn-export" id="btn-export-rtf">⤓ Esporta per la relazione (Word/Pages)</button>
+      <button class="btn-export secondario" id="btn-export-txt">⤓ Esporta come testo semplice</button>
+      <span class="nota-export">Genera moduli e approfondimenti già strutturati, pronti da incollare.</span>
+    </div>
+  `;
+
+  document.getElementById('input-nome').addEventListener('input', e=>{ classe.nome=e.target.value; salvaDati(); renderSidebar(); });
+  document.getElementById('input-anno').addEventListener('input', e=>{ classe.anno=e.target.value; salvaDati(); });
+
+  document.getElementById('btn-aggiungi-moduli').addEventListener('click', ()=>{
+    const testo = document.getElementById('area-incolla').value;
+    const n = importaModuli(classe, testo, false);
+    mostraAvvisoIncolla(n);
+    if(n>0){ document.getElementById('area-incolla').value=''; render(); }
+  });
+  document.getElementById('btn-sostituisci-moduli').addEventListener('click', ()=>{
+    const testo = document.getElementById('area-incolla').value;
+    if(classe.moduli.length>0 && !confirm('Sostituire tutti i moduli attuali? Gli approfondimenti già inseriti nei moduli esistenti andranno persi.')) return;
+    const n = importaModuli(classe, testo, true);
+    mostraAvvisoIncolla(n);
+    if(n>0){ document.getElementById('area-incolla').value=''; render(); }
+  });
+  document.getElementById('btn-modulo-manuale').addEventListener('click', ()=>{
+    classe.moduli.push({ id: idCasuale(), nome:'Nuovo modulo', voci: [] });
+    salvaDati(); render();
+  });
+  document.getElementById('btn-export-rtf').addEventListener('click', ()=> esportaRelazioneRTF(classe));
+  document.getElementById('btn-export-txt').addEventListener('click', ()=> esportaRelazioneTXT(classe));
+
+  renderModuli(classe);
+}
+
+function mostraAvvisoIncolla(n){
+  const el = document.getElementById('avviso-incolla');
+  if(!el) return;
+  el.textContent = n>0 ? (n + (n===1?' modulo importato':' moduli importati')) : 'Nessuna riga valida trovata.';
+  el.style.color = n>0 ? 'var(--verde)' : 'var(--ruggine)';
+}
+
+function renderModuli(classe){
+  const cont = document.getElementById('lista-moduli');
+  cont.innerHTML = '';
+  classe.moduli.forEach((m, i)=>{
+    const scheda = document.createElement('div');
+    scheda.className = 'modulo-scheda';
+    scheda.innerHTML = `
+      <div class="modulo-testa">
+        <span class="modulo-numero">${i+1}</span>
+        <input type="text" class="modulo-titolo" value="${escapeHtml(m.nome)}">
+        <span class="modulo-conteggio">${m.voci.length} ${m.voci.length===1?'voce':'voci'}</span>
+        <span class="modulo-azioni">
+          <button class="icona-btn" data-azione="su" title="Sposta su">↑</button>
+          <button class="icona-btn" data-azione="giu" title="Sposta giù">↓</button>
+          <button class="icona-btn elimina" data-azione="elimina-modulo" title="Elimina modulo">✕</button>
+        </span>
+      </div>
+      <div class="modulo-corpo"></div>
+    `;
+    const titolo = scheda.querySelector('.modulo-titolo');
+    titolo.addEventListener('input', e=>{ m.nome=e.target.value; salvaDati(); });
+    scheda.querySelector('[data-azione=su]').addEventListener('click', ()=>{ if(i>0){ [classe.moduli[i-1],classe.moduli[i]]=[classe.moduli[i],classe.moduli[i-1]]; salvaDati(); render(); } });
+    scheda.querySelector('[data-azione=giu]').addEventListener('click', ()=>{ if(i<classe.moduli.length-1){ [classe.moduli[i+1],classe.moduli[i]]=[classe.moduli[i],classe.moduli[i+1]]; salvaDati(); render(); } });
+    scheda.querySelector('[data-azione=elimina-modulo]').addEventListener('click', ()=>{
+      if(m.voci.length>0 && !confirm('Eliminare il modulo "'+m.nome+'" e i suoi '+m.voci.length+' approfondimenti?')) return;
+      classe.moduli.splice(i,1); salvaDati(); render();
+    });
+
+    const corpo = scheda.querySelector('.modulo-corpo');
+    m.voci.forEach((v, j)=>{
+      const voce = document.createElement('div');
+      voce.className = 'voce-appro';
+      voce.innerHTML = `
+        <div class="voce-data">
+          <input type="date" value="${v.data||''}">
+        </div>
+        <div class="voce-testo">
+          <textarea rows="1" placeholder="Cosa hai fatto: lettura, video, seminario, uscita al cinema, conferenza… (puoi dettarlo a voce)">${escapeHtml(v.testo)}</textarea>
+        </div>
+        <div class="voce-elimina">
+          <button class="icona-btn elimina" title="Rimuovi">✕</button>
+        </div>
+      `;
+      voce.querySelector('input[type=date]').addEventListener('change', e=>{ v.data=e.target.value; salvaDati(); });
+      const ta = voce.querySelector('textarea');
+      autoresize(ta);
+      ta.addEventListener('input', e=>{ v.testo=e.target.value; salvaDati(); autoresize(ta); });
+      voce.querySelector('.icona-btn.elimina').addEventListener('click', ()=>{ m.voci.splice(j,1); salvaDati(); render(); });
+      corpo.appendChild(voce);
+    });
+
+    const btnVoce = document.createElement('button');
+    btnVoce.className = 'btn-aggiungi-voce';
+    btnVoce.textContent = '+ aggiungi approfondimento';
+    btnVoce.addEventListener('click', ()=>{
+      m.voci.push({ id: idCasuale(), data:'', testo:'' });
+      salvaDati(); render();
+    });
+    corpo.appendChild(btnVoce);
+    cont.appendChild(scheda);
+  });
+}
+
+function autoresize(ta){
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight) + 'px';
+}
+
+// ---------- Esportazione per la relazione ----------
+function nomeFileClasse(classe, ext){
+  const base = (classe.nome||'classe').replace(/[^a-z0-9àèéìòù ]/gi,'').trim().replace(/\s+/g,'_') || 'classe';
+  return 'approfondimenti_' + base + '.' + ext;
+}
+
+function rtfEscape(s){
+  return String(s==null?'':s)
+    .replace(/\\/g,'\\\\').replace(/\{/g,'\\{').replace(/\}/g,'\\}')
+    .replace(/\n/g,'\\line ')
+    .replace(/[\u0080-\uffff]/g, c => '\\u' + c.charCodeAt(0) + '?');
+}
+
+function esportaRelazioneRTF(classe){
+  let rtf = '{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1040{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}}\n\\f0\\fs22\n';
+  rtf += '{\\pard\\b\\fs32 ' + rtfEscape(classe.nome) + '\\par}\n';
+  if(classe.anno) rtf += '{\\pard\\fs20\\sa240 Attività, letture e approfondimenti svolti \\emdash a.s. ' + rtfEscape(classe.anno) + '\\par}\n';
+  else rtf += '{\\pard\\fs20\\sa240 Attività, letture e approfondimenti svolti\\par}\n';
+
+  classe.moduli.forEach((m, i)=>{
+    rtf += '{\\pard\\b\\fs26\\sb200\\sa80 ' + (i+1) + '. ' + rtfEscape(m.nome) + '\\par}\n';
+    const voci = m.voci.filter(v => (v.testo||'').trim().length>0);
+    if(voci.length === 0){
+      rtf += '{\\pard\\i\\fs20\\sa100 (nessun approfondimento registrato)\\par}\n';
+    } else {
+      const vociOrdinate = voci.slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
+      vociOrdinate.forEach(v=>{
+        const data = v.data ? rtfEscape(formattaDataEstesa(v.data)) + ' \\endash  ' : '';
+        rtf += '{\\pard\\fi-280\\li280\\sa60 \\bullet\\tab ' + data + rtfEscape(v.testo.trim()) + '\\par}\n';
+      });
+    }
+  });
+  rtf += '}';
+
+  scaricaFile(rtf, nomeFileClasse(classe,'rtf'), 'application/rtf');
+  mostraNotaBackup('Relazione esportata per ' + classe.nome + '.', 'ok');
+}
+
+function esportaRelazioneTXT(classe){
+  let txt = classe.nome.toUpperCase() + '\n';
+  txt += (classe.anno ? 'Attività, letture e approfondimenti svolti — a.s. ' + classe.anno : 'Attività, letture e approfondimenti svolti') + '\n\n';
+  classe.moduli.forEach((m,i)=>{
+    txt += (i+1) + '. ' + m.nome + '\n';
+    const voci = m.voci.filter(v => (v.testo||'').trim().length>0)
+      .slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
+    if(voci.length===0){ txt += '   (nessun approfondimento registrato)\n'; }
+    else voci.forEach(v=>{
+      const data = v.data ? formattaDataEstesa(v.data) + ' – ' : '';
+      txt += '   • ' + data + v.testo.trim() + '\n';
+    });
+    txt += '\n';
+  });
+  scaricaFile(txt, nomeFileClasse(classe,'txt'), 'text/plain');
+  mostraNotaBackup('Testo esportato per ' + classe.nome + '.', 'ok');
+}
+
+function scaricaFile(contenuto, nome, tipo){
+  const blob = new Blob([tipo.indexOf('rtf')>=0 ? contenuto : '\ufeff'+contenuto], { type: tipo });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Backup ----------
+function mostraNotaBackup(testo, classe){
+  const nota = document.getElementById('nota-backup');
+  if(!nota) return;
+  nota.textContent = testo;
+  nota.className = 'nota-backup' + (classe ? ' ' + classe : '');
+  if(classe){
+    clearTimeout(mostraNotaBackup._t);
+    mostraNotaBackup._t = setTimeout(()=>{ nota.className='nota-backup'; nota.textContent='Consiglio: salva il file nel tuo Google Drive dopo modifiche importanti.'; }, 5000);
+  }
+}
+
+function esportaBackup(){
+  const dati = { _formato:'diario-approfondimenti-backup', _versione:1, _dataEsportazione:new Date().toISOString(), stato:stato };
+  const oggi = new Date();
+  const stamp = oggi.getFullYear()+'-'+String(oggi.getMonth()+1).padStart(2,'0')+'-'+String(oggi.getDate()).padStart(2,'0');
+  const n = (stato.classi||[]).length;
+  scaricaFile(JSON.stringify(dati,null,2), 'diario_approfondimenti_backup_'+stamp+'_'+n+'classi.json', 'application/json');
+  ultimoBackup = Date.now();
+  mostraNotaBackup('Backup salvato ('+n+' '+(n===1?'classe':'classi')+'). Conservalo nel tuo Drive.', 'ok');
+}
+
+function importaBackup(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const dati = JSON.parse(e.target.result);
+      let s = null;
+      if(dati && dati._formato==='diario-approfondimenti-backup' && dati.stato && Array.isArray(dati.stato.classi)) s = dati.stato;
+      else if(dati && Array.isArray(dati.classi)) s = dati;
+      if(!s){ mostraNotaBackup('File non valido: non sembra un backup del diario.', 'errore'); return; }
+      const n = s.classi.length;
+      if(!confirm('Ripristinare '+n+' '+(n===1?'classe':'classi')+' da questo file?\n\nATTENZIONE: le classi presenti in questo dispositivo verranno sostituite. Se vuoi prima mettere al sicuro lo stato attuale, annulla e usa "Salva backup su file".')) return;
+      stato = s;
+      if(!stato.classeAttiva && stato.classi.length) stato.classeAttiva = stato.classi[0].id;
+      salvaDati(); ultimoBackup = Date.now(); render();
+      mostraNotaBackup('Ripristino completato: '+n+' '+(n===1?'classe':'classi')+'.', 'ok');
+    }catch(err){ console.error(err); mostraNotaBackup('Impossibile leggere il file (formato non riconosciuto).', 'errore'); }
+  };
+  reader.onerror = () => mostraNotaBackup('Errore nella lettura del file.', 'errore');
+  reader.readAsText(file);
+}
+
+document.getElementById('btn-nuova-classe').addEventListener('click', nuovaClasse);
+document.getElementById('btn-esporta-backup').addEventListener('click', esportaBackup);
+document.getElementById('btn-importa-backup').addEventListener('click', ()=> document.getElementById('input-file-backup').click());
+document.getElementById('input-file-backup').addEventListener('change', e=>{
+  const file = e.target.files && e.target.files[0];
+  if(file) importaBackup(file);
+  e.target.value = '';
+});
+
+// ---------- Aggiunta rapida classi (3ª/4ª/5ª × A–I) ----------
+const ANNI_SCUOLA = ['3ª','4ª','5ª'];
+const SEZIONI = ['A','B','C','D','E','F','G','H','I'];
+let selezioneAnni = new Set();
+let selezioneSezioni = new Set();
+
+function renderChipsRapide(){
+  const contA = document.getElementById('rapido-anni');
+  const contS = document.getElementById('rapido-sezioni');
+  if(!contA || !contS) return;
+  contA.innerHTML = ''; contS.innerHTML = '';
+  ANNI_SCUOLA.forEach(a=>{
+    const chip = document.createElement('span');
+    chip.className = 'rapido-chip' + (selezioneAnni.has(a)?' attivo':'');
+    chip.textContent = a;
+    chip.addEventListener('click', ()=>{ selezioneAnni.has(a)?selezioneAnni.delete(a):selezioneAnni.add(a); renderChipsRapide(); });
+    contA.appendChild(chip);
+  });
+  SEZIONI.forEach(s=>{
+    const chip = document.createElement('span');
+    chip.className = 'rapido-chip' + (selezioneSezioni.has(s)?' attivo':'');
+    chip.textContent = s;
+    chip.addEventListener('click', ()=>{ selezioneSezioni.has(s)?selezioneSezioni.delete(s):selezioneSezioni.add(s); renderChipsRapide(); });
+    contS.appendChild(chip);
+  });
+}
+
+function creaClassiRapide(){
+  const materia = (document.getElementById('rapido-materia-input').value || '').trim();
+  const esito = document.getElementById('rapido-esito');
+  if(selezioneAnni.size===0 || selezioneSezioni.size===0){
+    esito.textContent = 'Seleziona almeno un anno e una sezione.'; esito.style.color='var(--ruggine)'; return;
+  }
+  const anno = annoScolasticoCorrente();
+  const esistenti = new Set(stato.classi.map(c => c.nome.toLowerCase()));
+  let creati = 0;
+  ANNI_SCUOLA.forEach(a=>{ if(!selezioneAnni.has(a)) return;
+    SEZIONI.forEach(s=>{ if(!selezioneSezioni.has(s)) return;
+      const numero = a.replace('ª','');
+      const nome = (materia ? materia + ' ' : '') + numero + s;
+      if(esistenti.has(nome.toLowerCase())) return;
+      stato.classi.push({ id: idCasuale(), nome, anno, moduli: [] });
+      esistenti.add(nome.toLowerCase());
+      creati++;
+    });
+  });
+  if(creati>0){
+    if(!stato.classeAttiva) stato.classeAttiva = stato.classi[0].id;
+    salvaDati();
+    esito.textContent = creati + (creati===1?' classe creata':' classi create') + (materia?'':' (senza materia: rinominale se serve)');
+    esito.style.color='var(--verde)';
+    selezioneAnni.clear(); selezioneSezioni.clear();
+    render();
+  } else {
+    esito.textContent = 'Nessuna nuova classe: esistono già tutte.'; esito.style.color='var(--inchiostro-tenue)';
+  }
+}
+
+document.getElementById('btn-rapido-crea').addEventListener('click', creaClassiRapide);
+renderChipsRapide();
+
+// ---------- Sincronizzazione via GitHub Gist ----------
+function setStatoSync(classe, testo){
+  const pallino = document.querySelector('#sync-stato .sync-pallino');
+  const label = document.getElementById('sync-testo');
+  if(pallino) pallino.className = 'sync-pallino ' + classe;
+  if(label) label.textContent = testo;
+}
+
+function aggiornaUISync(){
+  const haToken = !!localStorage.getItem(CHIAVE_TOKEN);
+  document.getElementById('btn-config-sync').style.display = haToken ? 'none' : 'block';
+  document.getElementById('btn-sync-ora').style.display = haToken ? 'block' : 'none';
+  document.getElementById('btn-rimuovi-token').style.display = haToken ? 'block' : 'none';
+  if(!haToken){ setStatoSync('grigio','Non configurata'); }
+}
+
+async function sincronizzaConGist(primaVolta){
+  const token = localStorage.getItem(CHIAVE_TOKEN);
+  if(!token) return;
+  setStatoSync('spin','Salvataggio in cloud…');
+  const backup = { _formato:'diario-approfondimenti-backup', _versione:1, _data:new Date().toISOString(), stato:stato };
+  const contenuto = JSON.stringify(backup, null, 2);
+  const gistId = localStorage.getItem(CHIAVE_GIST_ID);
+  try{
+    let res;
+    if(gistId){
+      res = await fetch('https://api.github.com/gists/'+gistId, {
+        method:'PATCH',
+        headers:{ 'Authorization':'token '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify({ files: { [GIST_FILENAME]: { content: contenuto } } })
+      });
+    } else {
+      res = await fetch('https://api.github.com/gists', {
+        method:'POST',
+        headers:{ 'Authorization':'token '+token, 'Content-Type':'application/json' },
+        body: JSON.stringify({ description:'Diario degli approfondimenti — backup automatico', public:false, files:{ [GIST_FILENAME]: { content: contenuto } } })
+      });
+    }
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if(!gistId && data.id) localStorage.setItem(CHIAVE_GIST_ID, data.id);
+    ultimoBackup = Date.now();
+    const ora = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+    setStatoSync('verde','Cloud aggiornato alle '+ora);
+  }catch(e){
+    console.error('Sync error:', e);
+    setStatoSync('rosso','Errore sync — dati al sicuro sul dispositivo');
+  }
+}
+
+async function caricaDaCloud(){
+  const token = localStorage.getItem(CHIAVE_TOKEN);
+  const gistId = localStorage.getItem(CHIAVE_GIST_ID);
+  if(!token || !gistId){ aggiornaUISync(); return; }
+  setStatoSync('spin','Controllo cloud…');
+  try{
+    const res = await fetch('https://api.github.com/gists/'+gistId, { headers:{ 'Authorization':'token '+token } });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const raw = data.files && data.files[GIST_FILENAME] && data.files[GIST_FILENAME].content;
+    if(raw){
+      const remoto = JSON.parse(raw);
+      const statoRemoto = (remoto && remoto.stato) ? remoto.stato : remoto;
+      if(statoRemoto && Array.isArray(statoRemoto.classi)){
+        stato = statoRemoto;
+        if(!stato.classeAttiva && stato.classi.length) stato.classeAttiva = stato.classi[0].id;
+        localStorage.setItem(CHIAVE_STORAGE, JSON.stringify(stato));
+        ultimoBackup = Date.now();
+        render();
+      }
+    }
+    const ora = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+    setStatoSync('verde','Caricato dal cloud alle '+ora);
+  }catch(e){
+    console.error('Load error:', e);
+    setStatoSync('rosso','Cloud non raggiungibile — uso i dati del dispositivo');
+  }
+  aggiornaUISync();
+}
+
+document.getElementById('btn-config-sync').addEventListener('click', ()=>{
+  const p = document.getElementById('pannello-token');
+  p.style.display = p.style.display==='none' ? 'flex' : 'none';
+});
+document.getElementById('btn-salva-token').addEventListener('click', ()=>{
+  const t = (document.getElementById('input-token').value||'').trim();
+  if(!t){ mostraNotaBackup('Inserisci il token GitHub.', 'errore'); return; }
+  localStorage.setItem(CHIAVE_TOKEN, t);
+  document.getElementById('input-token').value='';
+  document.getElementById('pannello-token').style.display='none';
+  aggiornaUISync();
+  sincronizzaConGist(true);
+});
+document.getElementById('btn-sync-ora').addEventListener('click', ()=> sincronizzaConGist(false));
+document.getElementById('btn-rimuovi-token').addEventListener('click', ()=>{
+  if(!confirm('Disconnettere il cloud da questo dispositivo? I dati restano salvati qui e sul Gist, ma non verranno più sincronizzati automaticamente.')) return;
+  localStorage.removeItem(CHIAVE_TOKEN);
+  localStorage.removeItem(CHIAVE_GIST_ID);
+  aggiornaUISync();
+  mostraNotaBackup('Cloud disconnesso.', 'ok');
+});
+
+// Promemoria alla chiusura SOLO se il cloud non è configurato (col cloud il salvataggio è automatico).
+window.addEventListener('beforeunload', e=>{
+  const cloudAttivo = !!localStorage.getItem(CHIAVE_TOKEN);
+  if(!cloudAttivo && ultimaModifica > ultimoBackup && (stato.classi||[]).length > 0){
+    e.preventDefault(); e.returnValue=''; return '';
+  }
+});
+
+// Avvio: prima render locale immediato, poi eventuale merge dal cloud.
+if(stato.classi.length === 0){ render(); }
+else { if(!stato.classeAttiva) stato.classeAttiva = stato.classi[0].id; render(); }
+aggiornaUISync();
+caricaDaCloud();
+</script>
+</body>
+</html>
