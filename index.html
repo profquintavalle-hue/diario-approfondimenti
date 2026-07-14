@@ -508,9 +508,7 @@ function esportaRelazioneRTF(classe, includiDate){
   classe.moduli.forEach((m, i)=>{
     rtf += '{\\pard\\b\\fs26\\sb200\\sa80 ' + (i+1) + '. ' + rtfEscape(m.nome) + '\\par}\n';
     const voci = m.voci.filter(v => (v.testo||'').trim().length>0);
-    if(voci.length === 0){
-      rtf += '{\\pard\\i\\fs20\\sa100 (nessun approfondimento registrato)\\par}\n';
-    } else {
+    if(voci.length > 0){
       const vociOrdinate = voci.slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
       vociOrdinate.forEach(v=>{
         const data = (includiDate && v.data) ? rtfEscape(formattaDataEstesa(v.data)) + ' \\endash  ' : '';
@@ -531,8 +529,7 @@ function esportaRelazioneTXT(classe, includiDate){
     txt += (i+1) + '. ' + m.nome + '\n';
     const voci = m.voci.filter(v => (v.testo||'').trim().length>0)
       .slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
-    if(voci.length===0){ txt += '   (nessun approfondimento registrato)\n'; }
-    else voci.forEach(v=>{
+    voci.forEach(v=>{
       const data = (includiDate && v.data) ? formattaDataEstesa(v.data) + ' – ' : '';
       txt += '   • ' + data + v.testo.trim() + '\n';
     });
