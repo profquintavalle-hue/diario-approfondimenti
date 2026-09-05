@@ -220,7 +220,13 @@
       <div class="rapido-intro">Scegli gli anni e le sezioni, poi la materia: crea tutte le combinazioni in un colpo.</div>
       <div class="rapido-gruppo"><span class="rapido-etichetta">Anno</span><div class="rapido-chips" id="rapido-anni"></div></div>
       <div class="rapido-gruppo"><span class="rapido-etichetta">Sezione</span><div class="rapido-chips" id="rapido-sezioni"></div></div>
-      <input type="text" id="rapido-materia-input" class="rapido-input" placeholder="Materia (es. Filosofia, Storia)">
+      <select id="rapido-materia-select" class="rapido-input">
+        <option value="Filosofia">Filosofia</option>
+        <option value="Storia">Storia</option>
+        <option value="Educazione civica">Educazione civica</option>
+        <option value="__altro">Altro (scrivo io)…</option>
+      </select>
+      <input type="text" id="rapido-materia-input" class="rapido-input" placeholder="Nome della materia o del modulo" style="display:none;">
       <button class="btn-rapido-crea" id="btn-rapido-crea">+ crea le classi selezionate</button>
       <div class="rapido-esito" id="rapido-esito"></div>
     </details>
@@ -374,6 +380,8 @@ function renderMain(){
       <select id="sel-materia">
         <option value="">materia</option>
         ${MATERIE.map(m=>`<option value="${m}" ${classe.materia===m?'selected':''}>${m}</option>`).join('')}
+        ${classe.materia && !MATERIE.includes(classe.materia) ? `<option value="${escapeHtml(classe.materia)}" selected>${escapeHtml(classe.materia)}</option>` : ''}
+        <option value="__altro">Altro (scrivo io)…</option>
       </select>
       <span class="nota-etichetta">compongono il nome; puoi comunque scriverlo a mano sopra</span>
     </div>
@@ -418,7 +426,17 @@ function renderMain(){
   }
   document.getElementById('sel-anno').addEventListener('change', e=>{ classe.annoCorso=e.target.value; aggiornaEtichetta(); });
   document.getElementById('sel-sezione').addEventListener('change', e=>{ classe.sezione=e.target.value; aggiornaEtichetta(); });
-  document.getElementById('sel-materia').addEventListener('change', e=>{ classe.materia=e.target.value; aggiornaEtichetta(); });
+  document.getElementById('sel-materia').addEventListener('change', e=>{
+    if(e.target.value === '__altro'){
+      const scritta = (prompt('Nome della materia o del modulo:', classe.materia || '') || '').trim();
+      if(!scritta){ e.target.value = classe.materia || ''; return; }
+      classe.materia = scritta;
+      aggiornaEtichetta(); render();
+      return;
+    }
+    classe.materia = e.target.value;
+    aggiornaEtichetta();
+  });
   document.getElementById('input-anno').addEventListener('input', e=>{ classe.anno=e.target.value; salvaDati(); });
 
   document.getElementById('btn-aggiungi-moduli').addEventListener('click', ()=>{
@@ -663,8 +681,21 @@ function renderChipsRapide(){
   });
 }
 
+function collegaMateriaRapida(){
+  const sel = document.getElementById('rapido-materia-select');
+  const txt = document.getElementById('rapido-materia-input');
+  if(!sel || !txt) return;
+  sel.addEventListener('change', ()=>{
+    const altro = sel.value === '__altro';
+    txt.style.display = altro ? '' : 'none';
+    if(altro) txt.focus();
+  });
+}
 function creaClassiRapide(){
-  const materia = (document.getElementById('rapido-materia-input').value || '').trim();
+  const scelta = document.getElementById('rapido-materia-select').value;
+  const materia = (scelta === '__altro'
+    ? (document.getElementById('rapido-materia-input').value || '')
+    : scelta).trim();
   const esito = document.getElementById('rapido-esito');
   if(selezioneAnni.size===0 || selezioneSezioni.size===0){
     esito.textContent = 'Seleziona almeno un anno e una sezione.'; esito.style.color='var(--ruggine)'; return;
@@ -695,6 +726,7 @@ function creaClassiRapide(){
 }
 
 document.getElementById('btn-rapido-crea').addEventListener('click', creaClassiRapide);
+collegaMateriaRapida();
 renderChipsRapide();
 
 // ---------- Sincronizzazione via GitHub Gist ----------
