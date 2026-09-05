@@ -174,7 +174,8 @@
   }
   .voce-testo textarea:hover, .voce-testo textarea:focus{ border-color:var(--bordo); background:var(--carta-alt); outline:none; }
   .voce-testo textarea::placeholder{ color:var(--inchiostro-tenue); opacity:0.7; }
-  .voce-elimina{ flex:0 0 auto; }
+  .voce-elimina{ flex:0 0 auto; display:flex; gap:2px; }
+  .icona-btn.copia{ color:var(--prugna); }
 
   .btn-aggiungi-voce{
     margin-top:8px; padding:7px 14px; border-radius:7px; border:1px dashed var(--bordo);
@@ -403,6 +404,11 @@ function renderMain(){
     <div id="lista-moduli"></div>
 
     <div class="barra-export">
+      <label class="check-date" title="Copia tutte le voci di quel giorno per incollarle nel registro">
+        registro del giorno
+        <input type="date" id="data-giornata" value="${domaniISO()}">
+      </label>
+      <button class="btn-export secondario" id="btn-copia-giornata">⧉ Copia per il registro</button>
       <button class="btn-export" id="btn-export-rtf">⤓ Esporta per la relazione (Word/Pages)</button>
       <button class="btn-export secondario" id="btn-export-txt">⤓ Esporta come testo semplice</button>
       <label class="check-date" title="Se disattivato, il documento finale non riporta le date accanto agli approfondimenti (utile per la relazione finale, dove di solito non servono).">
@@ -459,6 +465,9 @@ function renderMain(){
   const chkDate = document.getElementById('check-includi-date');
   chkDate.checked = localStorage.getItem('diario_includi_date') === 'si';
   chkDate.addEventListener('change', e=>{ localStorage.setItem('diario_includi_date', e.target.checked ? 'si' : 'no'); });
+  document.getElementById('btn-copia-giornata').addEventListener('click', ()=>{
+    copiaGiornata(classe, document.getElementById('data-giornata').value);
+  });
   document.getElementById('btn-export-rtf').addEventListener('click', ()=> esportaRelazioneRTF(classe, chkDate.checked));
   document.getElementById('btn-export-txt').addEventListener('click', ()=> esportaRelazioneTXT(classe, chkDate.checked));
 
@@ -512,6 +521,7 @@ function renderModuli(classe){
           <textarea rows="1" placeholder="Cosa hai fatto: lettura, video, seminario, uscita al cinema, conferenza… (puoi dettarlo a voce)">${escapeHtml(v.testo)}</textarea>
         </div>
         <div class="voce-elimina">
+          <button class="icona-btn copia" title="Copia modulo e approfondimento per il registro">⧉</button>
           <button class="icona-btn elimina" title="Rimuovi">✕</button>
         </div>
       `;
@@ -519,6 +529,10 @@ function renderModuli(classe){
       const ta = voce.querySelector('textarea');
       autoresize(ta);
       ta.addEventListener('input', e=>{ v.testo=e.target.value; salvaDati(); autoresize(ta); });
+      voce.querySelector('.icona-btn.copia').addEventListener('click', ()=>{
+        const testo = m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
+        copiaNegliAppunti(testo, 'Copiato: ' + m.nome);
+      });
       voce.querySelector('.icona-btn.elimina').addEventListener('click', ()=>{ m.voci.splice(j,1); salvaDati(); render(); });
       corpo.appendChild(voce);
     });
@@ -544,6 +558,38 @@ function autoresize(ta){
 function nomeFileClasse(classe, ext){
   const base = (classe.nome||'classe').replace(/[^a-z0-9àèéìòù ]/gi,'').trim().replace(/\s+/g,'_') || 'classe';
   return 'approfondimenti_' + base + '.' + ext;
+}
+
+function domaniISO(){
+  const d = new Date(); d.setDate(d.getDate()+1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function copiaNegliAppunti(testo, messaggio){
+  const ok = ()=> mostraNotaBackup(messaggio, 'ok');
+  const ripiego = ()=>{
+    const t = document.createElement('textarea');
+    t.value = testo;
+    t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    try{ document.execCommand('copy'); ok(); }
+    catch(e){ prompt('Copia manualmente:', testo); }
+    document.body.removeChild(t);
+  };
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(testo).then(ok).catch(ripiego);
+  } else ripiego();
+}
+
+// Tutte le voci di una data: utile per preparare il registro del giorno dopo.
+function copiaGiornata(classe, iso){
+  const righe = [];
+  classe.moduli.forEach(m => {
+    (m.voci||[]).forEach(v => {
+      if(v.data === iso) righe.push(m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : ''));
+    });
+  });
+  if(!righe.length){ alert('Nessun approfondimento con questa data in ' + classe.nome + '.'); return; }
+  copiaNegliAppunti(classe.nome + '\n' + righe.join('\n'), righe.length + (righe.length===1?' riga copiata.':' righe copiate.'));
 }
 
 function rtfEscape(s){
