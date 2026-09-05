@@ -177,6 +177,16 @@
   .voce-elimina{ flex:0 0 auto; display:flex; gap:2px; }
   .icona-btn.copia{ color:var(--prugna); }
   .icona-btn.duplica{ color:var(--prugna); }
+  .duplica-wrap{ position:relative; }
+  .pannello-duplica{ position:absolute; z-index:30; top:110%; right:0; width:230px;
+    background:var(--carta); border:1px solid var(--bordo); border-radius:8px; padding:8px;
+    box-shadow:0 6px 18px rgba(90,70,60,.18); display:flex; flex-direction:column; gap:4px; text-align:left; }
+  .pannello-duplica[hidden]{ display:none; }
+  .titolo-duplica{ font-size:0.72rem; text-transform:uppercase; letter-spacing:.05em; opacity:.6; padding:2px 4px; }
+  .btn-classe-dest{ text-align:left; padding:7px 9px; border:1px solid var(--bordo); border-radius:6px;
+    background:var(--carta); color:inherit; font-family:inherit; font-size:0.83rem; cursor:pointer; }
+  .btn-classe-dest:hover{ background:var(--prugna); color:var(--carta); border-color:var(--prugna); }
+  .chk-duplica{ display:flex; align-items:center; gap:5px; font-size:0.76rem; opacity:.8; padding:4px 4px 0; }
 
   .btn-aggiungi-voce{
     margin-top:8px; padding:7px 14px; border-radius:7px; border:1px dashed var(--bordo);
@@ -550,7 +560,14 @@ function renderModuli(classe){
         </div>
         <div class="voce-elimina">
           <button class="icona-btn copia" title="Copia modulo e approfondimento per il registro">⧉</button>
-          <button class="icona-btn duplica" title="Copia questo approfondimento in un'altra classe">⇉</button>
+          <span class="duplica-wrap">
+            <button class="icona-btn duplica" title="Copia questo approfondimento in un'altra classe">⇉</button>
+            <span class="pannello-duplica" hidden>
+              <span class="titolo-duplica">Copia in…</span>
+              ${stato.classi.filter(c => c.id !== classe.id).map(c => `<button class="btn-classe-dest" data-dest="${c.id}">${escapeHtml(c.nome)}</button>`).join('') || '<span class="titolo-duplica">nessun\'altra classe</span>'}
+              <label class="chk-duplica"><input type="checkbox" class="con-data" ${v.data ? '' : 'disabled'} checked> con la stessa data</label>
+            </span>
+          </span>
           <button class="icona-btn elimina" title="Rimuovi">✕</button>
         </div>
       `;
@@ -563,8 +580,21 @@ function renderModuli(classe){
         const testo = intestazione + '\n' + m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
         copiaNegliAppunti(testo, 'Copiato: ' + m.nome);
       });
-      voce.querySelector('.icona-btn.duplica').addEventListener('click', ()=>{
-        duplicaVoce(classe, m, v);
+      const btnDup = voce.querySelector('.icona-btn.duplica');
+      const panDup = voce.querySelector('.pannello-duplica');
+      btnDup.addEventListener('click', e=>{
+        e.stopPropagation();
+        const apriamo = panDup.hidden;
+        document.querySelectorAll('.pannello-duplica').forEach(x => x.hidden = true);
+        panDup.hidden = !apriamo;
+      });
+      panDup.addEventListener('click', e=> e.stopPropagation());
+      panDup.querySelectorAll('.btn-classe-dest').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const conData = panDup.querySelector('.con-data').checked && !!v.data;
+          duplicaVoce(b.dataset.dest, m, v, conData);
+          panDup.hidden = true;
+        });
       });
       voce.querySelector('.icona-btn.elimina').addEventListener('click', ()=>{ m.voci.splice(j,1); salvaDati(); render(); });
       corpo.appendChild(voce);
@@ -600,28 +630,17 @@ function domaniISO(){
 // Copia un approfondimento in un'altra classe, nel modulo con lo stesso nome
 // (creato se manca). La data si può portare o lasciare vuota: nelle classi
 // parallele la lezione a volte cade lo stesso giorno, a volte no.
-function duplicaVoce(classeOrigine, modulo, voce){
-  const altre = stato.classi.filter(c => c.id !== classeOrigine.id);
-  if(!altre.length){ alert('Non ci sono altre classi in cui copiare.'); return; }
-  const elenco = altre.map((c,i) => (i+1) + '. ' + c.nome).join('\n');
-  const scelta = prompt('In quale classe copio questo approfondimento?\n\n' + elenco + '\n\nScrivi il numero:', '1');
-  if(scelta === null) return;
-  const dest = altre[parseInt(scelta) - 1];
-  if(!dest){ alert('Numero non valido.'); return; }
-  let dataCopiata = '';
-  if(voce.data){
-    dataCopiata = confirm('Copio anche la data (' + formattaDataEstesa(voce.data) + ')?\n\nOK = stessa data   ·   Annulla = lascio la data vuota')
-      ? voce.data : '';
-  }
+function duplicaVoce(idDestinazione, modulo, voce, conData){
+  const dest = stato.classi.find(c => c.id === idDestinazione);
+  if(!dest) return;
   let mDest = dest.moduli.find(x => x.nome.trim().toLowerCase() === modulo.nome.trim().toLowerCase());
   if(!mDest){
     mDest = { id: idCasuale(), nome: modulo.nome, voci: [] };
     dest.moduli.push(mDest);
   }
-  mDest.voci.push({ id: idCasuale(), testo: voce.testo, data: dataCopiata });
+  mDest.voci.push({ id: idCasuale(), testo: voce.testo, data: conData ? voce.data : '' });
   salvaDati(); render();
-  alert('Copiato in ' + dest.nome + ', modulo "' + mDest.nome + '".'
-    + (dataCopiata ? '' : '\nRicordati di mettere la data quando fai la lezione.'));
+  mostraNotaBackup('Copiato in ' + dest.nome + (conData ? '.' : ' — manca la data.'), 'ok');
 }
 
 function copiaNegliAppunti(testo, messaggio){
