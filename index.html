@@ -176,6 +176,7 @@
   .voce-testo textarea::placeholder{ color:var(--inchiostro-tenue); opacity:0.7; }
   .voce-elimina{ flex:0 0 auto; display:flex; gap:2px; }
   .icona-btn.copia{ color:var(--prugna); }
+  .icona-btn.duplica{ color:var(--prugna); }
 
   .btn-aggiungi-voce{
     margin-top:8px; padding:7px 14px; border-radius:7px; border:1px dashed var(--bordo);
@@ -397,6 +398,16 @@ function renderMain(){
         <button class="btn-incolla secondario" id="btn-sostituisci-moduli">Sostituisci tutti i moduli</button>
         <span class="avviso-incolla" id="avviso-incolla"></span>
       </div>
+      ${stato.classi.length > 1 ? `
+      <div class="riga-incolla-azioni" style="border-top:1px solid var(--bordo); padding-top:12px;">
+        <span style="font-size:0.85rem;">Oppure copia i moduli da</span>
+        <select id="sel-copia-da" class="rapido-input" style="max-width:230px;">
+          <option value="">scegli una classe…</option>
+          ${stato.classi.filter(c => c.id !== classe.id).map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (${c.moduli.length})</option>`).join('')}
+        </select>
+        <button class="btn-incolla secondario" id="btn-copia-moduli">Copia i moduli</button>
+        <button class="btn-incolla secondario" id="btn-copia-moduli-voci">Copia anche gli approfondimenti</button>
+      </div>` : ''}
     </details>
 
     <button class="aggiungi-modulo-manuale" id="btn-modulo-manuale">+ aggiungi un singolo modulo a mano</button>
@@ -451,6 +462,23 @@ function renderMain(){
     mostraAvvisoIncolla(n);
     if(n>0){ document.getElementById('area-incolla').value=''; render(); }
   });
+  const btnCopia = document.getElementById('btn-copia-moduli');
+  if(btnCopia){
+    const copiaDa = (conVoci)=>{
+      const id = document.getElementById('sel-copia-da').value;
+      const origine = stato.classi.find(c => c.id === id);
+      if(!origine){ document.getElementById('avviso-incolla').textContent = 'Scegli prima la classe da cui copiare.'; return; }
+      const copiati = origine.moduli.map(m => ({
+        id: idCasuale(),
+        nome: m.nome,
+        voci: conVoci ? (m.voci||[]).map(v => ({ id: idCasuale(), testo: v.testo, data: v.data })) : []
+      }));
+      classe.moduli = classe.moduli.concat(copiati);
+      salvaDati(); render();
+    };
+    btnCopia.addEventListener('click', ()=> copiaDa(false));
+    document.getElementById('btn-copia-moduli-voci').addEventListener('click', ()=> copiaDa(true));
+  }
   document.getElementById('btn-sostituisci-moduli').addEventListener('click', ()=>{
     const testo = document.getElementById('area-incolla').value;
     if(classe.moduli.length>0 && !confirm('Sostituire tutti i moduli attuali? Gli approfondimenti già inseriti nei moduli esistenti andranno persi.')) return;
@@ -522,6 +550,7 @@ function renderModuli(classe){
         </div>
         <div class="voce-elimina">
           <button class="icona-btn copia" title="Copia modulo e approfondimento per il registro">⧉</button>
+          <button class="icona-btn duplica" title="Copia questo approfondimento in un'altra classe">⇉</button>
           <button class="icona-btn elimina" title="Rimuovi">✕</button>
         </div>
       `;
@@ -533,6 +562,9 @@ function renderModuli(classe){
         const intestazione = (v.data ? formattaDataEstesa(v.data) + ' — ' : '') + classe.nome;
         const testo = intestazione + '\n' + m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
         copiaNegliAppunti(testo, 'Copiato: ' + m.nome);
+      });
+      voce.querySelector('.icona-btn.duplica').addEventListener('click', ()=>{
+        duplicaVoce(classe, m, v);
       });
       voce.querySelector('.icona-btn.elimina').addEventListener('click', ()=>{ m.voci.splice(j,1); salvaDati(); render(); });
       corpo.appendChild(voce);
@@ -565,6 +597,33 @@ function domaniISO(){
   const d = new Date(); d.setDate(d.getDate()+1);
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
+// Copia un approfondimento in un'altra classe, nel modulo con lo stesso nome
+// (creato se manca). La data si può portare o lasciare vuota: nelle classi
+// parallele la lezione a volte cade lo stesso giorno, a volte no.
+function duplicaVoce(classeOrigine, modulo, voce){
+  const altre = stato.classi.filter(c => c.id !== classeOrigine.id);
+  if(!altre.length){ alert('Non ci sono altre classi in cui copiare.'); return; }
+  const elenco = altre.map((c,i) => (i+1) + '. ' + c.nome).join('\n');
+  const scelta = prompt('In quale classe copio questo approfondimento?\n\n' + elenco + '\n\nScrivi il numero:', '1');
+  if(scelta === null) return;
+  const dest = altre[parseInt(scelta) - 1];
+  if(!dest){ alert('Numero non valido.'); return; }
+  let dataCopiata = '';
+  if(voce.data){
+    dataCopiata = confirm('Copio anche la data (' + formattaDataEstesa(voce.data) + ')?\n\nOK = stessa data   ·   Annulla = lascio la data vuota')
+      ? voce.data : '';
+  }
+  let mDest = dest.moduli.find(x => x.nome.trim().toLowerCase() === modulo.nome.trim().toLowerCase());
+  if(!mDest){
+    mDest = { id: idCasuale(), nome: modulo.nome, voci: [] };
+    dest.moduli.push(mDest);
+  }
+  mDest.voci.push({ id: idCasuale(), testo: voce.testo, data: dataCopiata });
+  salvaDati(); render();
+  alert('Copiato in ' + dest.nome + ', modulo "' + mDest.nome + '".'
+    + (dataCopiata ? '' : '\nRicordati di mettere la data quando fai la lezione.'));
+}
+
 function copiaNegliAppunti(testo, messaggio){
   const ok = ()=> mostraNotaBackup(messaggio, 'ok');
   const ripiego = ()=>{
