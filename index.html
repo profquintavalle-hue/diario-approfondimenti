@@ -102,6 +102,10 @@
   .vuoto h2{ color:var(--prugna); }
   .vuoto button{ margin-top:8px; padding:10px 20px; border-radius:8px; border:none; background:var(--prugna); color:var(--carta); cursor:pointer; font-size:0.9rem; }
 
+  .riga-etichetta{ display:flex; align-items:center; gap:8px; margin:2px 0 8px; flex-wrap:wrap; }
+  .riga-etichetta select{ padding:6px 10px; border:1px solid var(--bordo); border-radius:6px;
+                          font-family:inherit; font-size:0.83rem; background:#fff; color:inherit; }
+  .nota-etichetta{ font-size:0.75rem; opacity:.6; }
   .intestazione{ display:flex; align-items:baseline; gap:12px; margin-bottom:4px; flex-wrap:wrap; }
   .intestazione input[type=text]{
     font-family:Georgia, serif; font-size:1.5rem; font-weight:600; color:var(--prugna);
@@ -276,10 +280,12 @@ function programmaSync(){
 }
 let stato = caricaDati();
 
+const LETTERE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const MATERIE = ['Filosofia','Storia','Educazione civica'];
 function classeCorrente(){ return stato.classi.find(c => c.id === stato.classeAttiva) || null; }
 
 function nuovaClasse(){
-  const c = { id: idCasuale(), nome: 'Nuova classe / materia', anno: annoScolasticoCorrente(), moduli: [] };
+  const c = { id: idCasuale(), nome: 'Nuova classe / materia', anno: annoScolasticoCorrente(), annoCorso:'', sezione:'', materia:'', moduli: [] };
   stato.classi.push(c);
   stato.classeAttiva = c.id;
   salvaDati(); render();
@@ -356,6 +362,21 @@ function renderMain(){
       <input type="text" id="input-nome" value="${escapeHtml(classe.nome)}" placeholder="Es. Filosofia 3C">
       <input type="text" id="input-anno" value="${escapeHtml(classe.anno||'')}" placeholder="a.s. 2026/2027" style="font-size:0.95rem; color:var(--inchiostro-tenue); min-width:150px;">
     </div>
+    <div class="riga-etichetta">
+      <select id="sel-anno">
+        <option value="">anno</option>
+        ${[3,4,5].map(a=>`<option value="${a}" ${classe.annoCorso==a?'selected':''}>${a}ª</option>`).join('')}
+      </select>
+      <select id="sel-sezione">
+        <option value="">sez.</option>
+        ${LETTERE.map(l=>`<option value="${l}" ${classe.sezione===l?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <select id="sel-materia">
+        <option value="">materia</option>
+        ${MATERIE.map(m=>`<option value="${m}" ${classe.materia===m?'selected':''}>${m}</option>`).join('')}
+      </select>
+      <span class="nota-etichetta">compongono il nome; puoi comunque scriverlo a mano sopra</span>
+    </div>
     <div class="sotto-intestazione">${classe.moduli.length} moduli · ${nVoci} ${nVoci===1?'approfondimento registrato':'approfondimenti registrati'}</div>
 
     <details class="pannello-incolla" id="pannello-incolla" ${classe.moduli.length===0 ? 'open':''}>
@@ -383,6 +404,21 @@ function renderMain(){
   `;
 
   document.getElementById('input-nome').addEventListener('input', e=>{ classe.nome=e.target.value; salvaDati(); renderSidebar(); });
+  function aggiornaEtichetta(){
+    const parti = [];
+    if(classe.annoCorso && classe.sezione) parti.push(classe.annoCorso + classe.sezione);
+    else if(classe.annoCorso) parti.push(classe.annoCorso + 'ª');
+    else if(classe.sezione) parti.push(classe.sezione);
+    if(classe.materia) parti.push(classe.materia);
+    if(parti.length){
+      classe.nome = parti.join(' ');
+      document.getElementById('input-nome').value = classe.nome;
+    }
+    salvaDati(); renderSidebar();
+  }
+  document.getElementById('sel-anno').addEventListener('change', e=>{ classe.annoCorso=e.target.value; aggiornaEtichetta(); });
+  document.getElementById('sel-sezione').addEventListener('change', e=>{ classe.sezione=e.target.value; aggiornaEtichetta(); });
+  document.getElementById('sel-materia').addEventListener('change', e=>{ classe.materia=e.target.value; aggiornaEtichetta(); });
   document.getElementById('input-anno').addEventListener('input', e=>{ classe.anno=e.target.value; salvaDati(); });
 
   document.getElementById('btn-aggiungi-moduli').addEventListener('click', ()=>{
