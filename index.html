@@ -530,7 +530,8 @@ function renderModuli(classe){
       autoresize(ta);
       ta.addEventListener('input', e=>{ v.testo=e.target.value; salvaDati(); autoresize(ta); });
       voce.querySelector('.icona-btn.copia').addEventListener('click', ()=>{
-        const testo = m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
+        const testo = (v.data ? formattaDataEstesa(v.data) + ' — ' : '')
+          + m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
         copiaNegliAppunti(testo, 'Copiato: ' + m.nome);
       });
       voce.querySelector('.icona-btn.elimina').addEventListener('click', ()=>{ m.voci.splice(j,1); salvaDati(); render(); });
@@ -589,7 +590,8 @@ function copiaGiornata(classe, iso){
     });
   });
   if(!righe.length){ alert('Nessun approfondimento con questa data in ' + classe.nome + '.'); return; }
-  copiaNegliAppunti(classe.nome + '\n' + righe.join('\n'), righe.length + (righe.length===1?' riga copiata.':' righe copiate.'));
+  const intestazione = formattaDataEstesa(iso) + ' — ' + classe.nome;
+  copiaNegliAppunti(intestazione + '\n' + righe.join('\n'), righe.length + (righe.length===1?' riga copiata.':' righe copiate.'));
 }
 
 function rtfEscape(s){
