@@ -178,7 +178,7 @@
   .icona-btn.copia{ color:var(--prugna); }
   .icona-btn.duplica{ color:var(--prugna); }
   .duplica-wrap{ position:relative; }
-  .pannello-duplica{ position:absolute; z-index:30; top:110%; right:0; width:230px;
+  .pannello-duplica{ position:fixed; z-index:200; width:230px; max-height:min(320px, 60vh); overflow-y:auto;
     background:var(--carta); border:1px solid var(--bordo); border-radius:8px; padding:8px;
     box-shadow:0 6px 18px rgba(90,70,60,.18); display:flex; flex-direction:column; gap:4px; text-align:left; }
   .pannello-duplica[hidden]{ display:none; }
@@ -587,6 +587,16 @@ function renderModuli(classe){
         const apriamo = panDup.hidden;
         document.querySelectorAll('.pannello-duplica').forEach(x => x.hidden = true);
         panDup.hidden = !apriamo;
+        if(apriamo){
+          const r = btnDup.getBoundingClientRect();
+          panDup.style.left = Math.max(8, Math.min(r.right - 230, window.innerWidth - 240)) + 'px';
+          panDup.style.top = (r.bottom + 6) + 'px';
+          // se non ci sta sotto, lo apro verso l'alto
+          const h = panDup.offsetHeight;
+          if(r.bottom + 6 + h > window.innerHeight - 8){
+            panDup.style.top = Math.max(8, r.top - 6 - h) + 'px';
+          }
+        }
       });
       panDup.addEventListener('click', e=> e.stopPropagation());
       panDup.querySelectorAll('.btn-classe-dest').forEach(b=>{
