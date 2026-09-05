@@ -530,8 +530,8 @@ function renderModuli(classe){
       autoresize(ta);
       ta.addEventListener('input', e=>{ v.testo=e.target.value; salvaDati(); autoresize(ta); });
       voce.querySelector('.icona-btn.copia').addEventListener('click', ()=>{
-        const testo = (v.data ? formattaDataEstesa(v.data) + ' — ' : '')
-          + m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
+        const intestazione = (v.data ? formattaDataEstesa(v.data) + ' — ' : '') + classe.nome;
+        const testo = intestazione + '\n' + m.nome + (v.testo.trim() ? ' — ' + v.testo.trim() : '');
         copiaNegliAppunti(testo, 'Copiato: ' + m.nome);
       });
       voce.querySelector('.icona-btn.elimina').addEventListener('click', ()=>{ m.voci.splice(j,1); salvaDati(); render(); });
