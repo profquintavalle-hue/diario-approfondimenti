@@ -465,8 +465,12 @@ function renderMain(){
           <option value="">scegli una classe…</option>
           ${stato.classi.filter(c => c.id !== classe.id).map(c => `<option value="${c.id}">${escapeHtml(c.nome)} (${c.moduli.length})</option>`).join('')}
         </select>
-        <button class="btn-incolla secondario" id="btn-copia-moduli">Copia i moduli</button>
-        <button class="btn-incolla secondario" id="btn-copia-moduli-voci">Copia anche gli approfondimenti</button>
+        <select id="sel-modo-copia" class="sel-posizione">
+          <option value="aggiungi">aggiungendoli ai moduli attuali</option>
+          <option value="sostituisci">sostituendo i moduli attuali</option>
+        </select>
+        <label class="check-date"><input type="checkbox" id="chk-copia-voci"> con gli approfondimenti</label>
+        <button class="btn-incolla" id="btn-copia-moduli">Copia i moduli</button>
       </div>` : ''}
     </details>
 
@@ -531,7 +535,7 @@ function renderMain(){
   });
   const btnCopia = document.getElementById('btn-copia-moduli');
   if(btnCopia){
-    const copiaDa = (conVoci)=>{
+    const copiaDa = (conVoci, sostituisci)=>{
       const id = document.getElementById('sel-copia-da').value;
       const origine = stato.classi.find(c => c.id === id);
       if(!origine){ document.getElementById('avviso-incolla').textContent = 'Scegli prima la classe da cui copiare.'; return; }
@@ -540,13 +544,24 @@ function renderMain(){
         nome: m.nome,
         voci: conVoci ? (m.voci||[]).map(v => ({ id: idCasuale(), testo: v.testo, data: v.data })) : []
       }));
-      const selPos = document.getElementById('sel-posizione');
-      inserisciInPosizione(classe, copiati, selPos ? selPos.value : 'fine');
-      moduliSelezionati = new Set(copiati.map(m => m.id));
+      if(sostituisci){
+        const nVociAttuali = classe.moduli.reduce((s,m)=>s+m.voci.length, 0);
+        const avviso = 'Sostituire i ' + classe.moduli.length + ' moduli di ' + classe.nome + ' con i ' + copiati.length + ' di ' + origine.nome + '?'
+          + (nVociAttuali ? '\n\nATTENZIONE: si perderanno ' + nVociAttuali + ' approfondimenti già registrati in ' + classe.nome + '.' : '');
+        if(!confirm(avviso)) return;
+        classe.moduli = copiati;
+        moduliSelezionati.clear();
+      } else {
+        const selPos = document.getElementById('sel-posizione');
+        inserisciInPosizione(classe, copiati, selPos ? selPos.value : 'fine');
+        moduliSelezionati = new Set(copiati.map(m => m.id));
+      }
       salvaDati(); render();
     };
-    btnCopia.addEventListener('click', ()=> copiaDa(false));
-    document.getElementById('btn-copia-moduli-voci').addEventListener('click', ()=> copiaDa(true));
+    btnCopia.addEventListener('click', ()=> copiaDa(
+      document.getElementById('chk-copia-voci').checked,
+      document.getElementById('sel-modo-copia').value === 'sostituisci'
+    ));
   }
   document.getElementById('btn-sostituisci-moduli').addEventListener('click', ()=>{
     const testo = document.getElementById('area-incolla').value;
@@ -593,11 +608,18 @@ function renderModuli(classe){
       <button class="btn-incolla" id="btn-sposta-sel">Sposta</button>
       <button class="btn-incolla secondario" id="btn-tutti-sel">Seleziona tutti</button>
       <button class="btn-incolla secondario" id="btn-annulla-sel">Deseleziona</button>
+      <button class="btn-incolla secondario" id="btn-elimina-sel" style="color:var(--ruggine);">✕ Elimina selezionati</button>
     `;
     cont.appendChild(barra);
     barra.querySelector('#btn-sposta-sel').addEventListener('click', ()=> spostaSelezionati(classe, barra.querySelector('#sel-sposta').value));
     barra.querySelector('#btn-tutti-sel').addEventListener('click', ()=>{ classe.moduli.forEach(m => moduliSelezionati.add(m.id)); render(); });
     barra.querySelector('#btn-annulla-sel').addEventListener('click', ()=>{ moduliSelezionati.clear(); render(); });
+    barra.querySelector('#btn-elimina-sel').addEventListener('click', ()=>{
+      const nVoci = sel.reduce((s,m)=>s+m.voci.length, 0);
+      if(!confirm('Eliminare ' + sel.length + (sel.length===1?' modulo':' moduli') + (nVoci ? ' e ' + nVoci + ' approfondimenti' : '') + '?')) return;
+      classe.moduli = classe.moduli.filter(m => !moduliSelezionati.has(m.id));
+      moduliSelezionati.clear(); salvaDati(); render();
+    });
   }
   classe.moduli.forEach((m, i)=>{
     const scheda = document.createElement('div');
