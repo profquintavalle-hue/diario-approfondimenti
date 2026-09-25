@@ -207,6 +207,17 @@
   .check-date{ display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--inchiostro-tenue); cursor:pointer; }
   .check-date input{ cursor:pointer; }
 
+  .chk-modulo{ flex:0 0 auto; width:18px; height:18px; accent-color:var(--prugna); cursor:pointer; margin:0; }
+  .modulo-scheda.selezionato{ border-color:var(--prugna); box-shadow:0 0 0 2px rgba(110,59,84,0.18); }
+  .modulo-scheda.selezionato .modulo-testa{ background:rgba(110,59,84,0.10); }
+  .barra-selezione{ position:sticky; top:0; z-index:50; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding:10px 14px; margin-bottom:14px; background:#F6EBEF; border:1px solid var(--prugna); border-radius:10px;
+    box-shadow:0 4px 12px rgba(110,59,84,0.12); font-size:0.86rem; }
+  .barra-selezione b{ color:var(--prugna); }
+  .barra-selezione select, .sel-posizione{ padding:6px 10px; border:1px solid var(--bordo); border-radius:6px;
+    font-family:inherit; font-size:0.83rem; background:#fff; color:var(--inchiostro); max-width:320px; }
+  .barra-selezione .btn-incolla{ padding:6px 14px; }
+  .etichetta-posizione{ font-size:0.85rem; color:var(--inchiostro); }
   .aggiungi-modulo-manuale{
     margin-bottom:18px; padding:9px 14px; border-radius:8px; border:1px dashed var(--bordo);
     background:transparent; color:var(--inchiostro-tenue); cursor:pointer; font-size:0.85rem;
@@ -333,16 +344,50 @@ function formattaDataEstesa(iso){
 }
 
 // ---------- Import moduli da testo incollato ----------
-function importaModuli(classe, testo, sostituisci){
+let moduliSelezionati = new Set();
+
+// Opzioni per scegliere dove inserire/spostare: in cima, dopo un certo modulo, in fondo.
+function opzioniPosizione(classe, escludiIds){
+  const escludi = escludiIds || new Set();
+  let html = '<option value="fine">in fondo</option><option value="inizio">all\'inizio</option>';
+  classe.moduli.forEach((m, i)=>{
+    if(escludi.has(m.id)) return;
+    const nome = m.nome.length > 45 ? m.nome.slice(0,45) + '…' : m.nome;
+    html += `<option value="${m.id}">dopo ${i+1}. ${escapeHtml(nome)}</option>`;
+  });
+  return html;
+}
+
+// Inserisce un blocco di moduli nella posizione scelta ('fine', 'inizio' o id del modulo dopo cui metterli).
+function inserisciInPosizione(classe, nuovi, posizione){
+  if(!posizione || posizione === 'fine'){ classe.moduli = classe.moduli.concat(nuovi); return; }
+  if(posizione === 'inizio'){ classe.moduli = nuovi.concat(classe.moduli); return; }
+  const idx = classe.moduli.findIndex(m => m.id === posizione);
+  if(idx < 0){ classe.moduli = classe.moduli.concat(nuovi); return; }
+  classe.moduli.splice(idx + 1, 0, ...nuovi);
+}
+
+function selezionatiDi(classe){ return classe.moduli.filter(m => moduliSelezionati.has(m.id)); }
+
+// Sposta in blocco i moduli selezionati, mantenendone l'ordine reciproco.
+function spostaSelezionati(classe, posizione){
+  const blocco = selezionatiDi(classe);
+  if(!blocco.length) return;
+  classe.moduli = classe.moduli.filter(m => !moduliSelezionati.has(m.id));
+  inserisciInPosizione(classe, blocco, posizione);
+  salvaDati(); render();
+}
+
+function importaModuli(classe, testo, sostituisci, posizione){
   const righe = testo.split('\n')
     .map(r => r.replace(/^\s*[\-\u2022\d\.\)]+\s*/, '').trim()) // togli bullet/numeri iniziali
     .filter(r => r.length > 0);
-  if(righe.length === 0) return 0;
+  if(righe.length === 0) return [];
   const nuovi = righe.map(nome => ({ id: idCasuale(), nome, voci: [] }));
   if(sostituisci) classe.moduli = nuovi;
-  else classe.moduli = classe.moduli.concat(nuovi);
+  else inserisciInPosizione(classe, nuovi, posizione);
   salvaDati();
-  return nuovi.length;
+  return nuovi;
 }
 
 // ---------- Rendering ----------
@@ -355,7 +400,7 @@ function renderSidebar(){
     const tab = document.createElement('div');
     tab.className = 'tab-classe' + (c.id===stato.classeAttiva ? ' attivo':'');
     tab.innerHTML = `<span>${escapeHtml(c.nome)}</span><span class="elimina-tab" title="Elimina">✕</span>`;
-    tab.addEventListener('click', ()=>{ stato.classeAttiva = c.id; salvaDati(); render(); });
+    tab.addEventListener('click', ()=>{ stato.classeAttiva = c.id; moduliSelezionati.clear(); salvaDati(); render(); });
     tab.querySelector('.elimina-tab').addEventListener('click', ev=>eliminaClasse(c.id, ev));
     cont.appendChild(tab);
   });
@@ -403,6 +448,11 @@ function renderMain(){
       <summary>Incolla o aggiorna l'elenco dei moduli</summary>
       <p>Incolla qui i moduli previsti, <b>uno per riga</b>. Eventuali trattini, puntini o numeri all'inizio riga vengono tolti automaticamente. Puoi aggiungerli a quelli esistenti o sostituirli del tutto.</p>
       <textarea id="area-incolla" placeholder="Presocratici&#10;Socrate e i sofisti&#10;Platone&#10;Aristotele&#10;..."></textarea>
+      ${classe.moduli.length > 0 ? `
+      <div class="riga-incolla-azioni">
+        <span class="etichetta-posizione">Dove inserirli:</span>
+        <select id="sel-posizione" class="sel-posizione">${opzioniPosizione(classe)}</select>
+      </div>` : ''}
       <div class="riga-incolla-azioni">
         <button class="btn-incolla" id="btn-aggiungi-moduli">Aggiungi come moduli</button>
         <button class="btn-incolla secondario" id="btn-sostituisci-moduli">Sostituisci tutti i moduli</button>
@@ -468,9 +518,16 @@ function renderMain(){
 
   document.getElementById('btn-aggiungi-moduli').addEventListener('click', ()=>{
     const testo = document.getElementById('area-incolla').value;
-    const n = importaModuli(classe, testo, false);
+    const selPos = document.getElementById('sel-posizione');
+    const nuovi = importaModuli(classe, testo, false, selPos ? selPos.value : 'fine');
+    const n = nuovi.length;
+    if(n>0){
+      // i nuovi restano selezionati: se serve, si spostano subito in blocco
+      moduliSelezionati = new Set(nuovi.map(m => m.id));
+      document.getElementById('area-incolla').value=''; render();
+      document.getElementById('pannello-incolla').open = true;
+    }
     mostraAvvisoIncolla(n);
-    if(n>0){ document.getElementById('area-incolla').value=''; render(); }
   });
   const btnCopia = document.getElementById('btn-copia-moduli');
   if(btnCopia){
@@ -483,7 +540,9 @@ function renderMain(){
         nome: m.nome,
         voci: conVoci ? (m.voci||[]).map(v => ({ id: idCasuale(), testo: v.testo, data: v.data })) : []
       }));
-      classe.moduli = classe.moduli.concat(copiati);
+      const selPos = document.getElementById('sel-posizione');
+      inserisciInPosizione(classe, copiati, selPos ? selPos.value : 'fine');
+      moduliSelezionati = new Set(copiati.map(m => m.id));
       salvaDati(); render();
     };
     btnCopia.addEventListener('click', ()=> copiaDa(false));
@@ -492,9 +551,9 @@ function renderMain(){
   document.getElementById('btn-sostituisci-moduli').addEventListener('click', ()=>{
     const testo = document.getElementById('area-incolla').value;
     if(classe.moduli.length>0 && !confirm('Sostituire tutti i moduli attuali? Gli approfondimenti già inseriti nei moduli esistenti andranno persi.')) return;
-    const n = importaModuli(classe, testo, true);
+    const n = importaModuli(classe, testo, true).length;
+    if(n>0){ moduliSelezionati.clear(); document.getElementById('area-incolla').value=''; render(); document.getElementById('pannello-incolla').open = true; }
     mostraAvvisoIncolla(n);
-    if(n>0){ document.getElementById('area-incolla').value=''; render(); }
   });
   document.getElementById('btn-modulo-manuale').addEventListener('click', ()=>{
     classe.moduli.push({ id: idCasuale(), nome:'Nuovo modulo', voci: [] });
@@ -515,18 +574,37 @@ function renderMain(){
 function mostraAvvisoIncolla(n){
   const el = document.getElementById('avviso-incolla');
   if(!el) return;
-  el.textContent = n>0 ? (n + (n===1?' modulo importato':' moduli importati')) : 'Nessuna riga valida trovata.';
+  el.textContent = n>0 ? (n + (n===1?' modulo importato':' moduli importati') + (moduliSelezionati.size ? ' — sono evidenziati: puoi spostarli in blocco' : '')) : 'Nessuna riga valida trovata.';
   el.style.color = n>0 ? 'var(--verde)' : 'var(--ruggine)';
 }
 
 function renderModuli(classe){
   const cont = document.getElementById('lista-moduli');
   cont.innerHTML = '';
+  const sel = selezionatiDi(classe);
+  if(sel.length){
+    const escludi = new Set(sel.map(m => m.id));
+    const barra = document.createElement('div');
+    barra.className = 'barra-selezione';
+    barra.innerHTML = `
+      <span><b>${sel.length}</b> ${sel.length===1?'modulo selezionato':'moduli selezionati'}</span>
+      <span>Sposta</span>
+      <select id="sel-sposta">${opzioniPosizione(classe, escludi).replace('<option value="fine">in fondo</option><option value="inizio">all\'inizio</option>', '<option value="inizio">all\'inizio</option><option value="fine">in fondo</option>')}</select>
+      <button class="btn-incolla" id="btn-sposta-sel">Sposta</button>
+      <button class="btn-incolla secondario" id="btn-tutti-sel">Seleziona tutti</button>
+      <button class="btn-incolla secondario" id="btn-annulla-sel">Deseleziona</button>
+    `;
+    cont.appendChild(barra);
+    barra.querySelector('#btn-sposta-sel').addEventListener('click', ()=> spostaSelezionati(classe, barra.querySelector('#sel-sposta').value));
+    barra.querySelector('#btn-tutti-sel').addEventListener('click', ()=>{ classe.moduli.forEach(m => moduliSelezionati.add(m.id)); render(); });
+    barra.querySelector('#btn-annulla-sel').addEventListener('click', ()=>{ moduliSelezionati.clear(); render(); });
+  }
   classe.moduli.forEach((m, i)=>{
     const scheda = document.createElement('div');
-    scheda.className = 'modulo-scheda';
+    scheda.className = 'modulo-scheda' + (moduliSelezionati.has(m.id) ? ' selezionato' : '');
     scheda.innerHTML = `
       <div class="modulo-testa">
+        <input type="checkbox" class="chk-modulo" title="Seleziona per spostare in blocco" ${moduliSelezionati.has(m.id)?'checked':''}>
         <span class="modulo-numero">${i+1}</span>
         <input type="text" class="modulo-titolo" value="${escapeHtml(m.nome)}">
         <span class="modulo-conteggio">${m.voci.length} ${m.voci.length===1?'voce':'voci'}</span>
@@ -538,6 +616,10 @@ function renderModuli(classe){
       </div>
       <div class="modulo-corpo"></div>
     `;
+    scheda.querySelector('.chk-modulo').addEventListener('change', e=>{
+      if(e.target.checked) moduliSelezionati.add(m.id); else moduliSelezionati.delete(m.id);
+      const y = window.scrollY; render(); window.scrollTo(0, y);
+    });
     const titolo = scheda.querySelector('.modulo-titolo');
     titolo.addEventListener('input', e=>{ m.nome=e.target.value; salvaDati(); });
     scheda.querySelector('[data-azione=su]').addEventListener('click', ()=>{ if(i>0){ [classe.moduli[i-1],classe.moduli[i]]=[classe.moduli[i],classe.moduli[i-1]]; salvaDati(); render(); } });
