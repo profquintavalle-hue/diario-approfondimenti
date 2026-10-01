@@ -224,6 +224,39 @@
   }
   .aggiungi-modulo-manuale:hover{ border-color:var(--prugna); color:var(--prugna); }
 
+  /* Argomenti dei moduli */
+  .blocco-argomenti{ margin:4px 0 6px; padding:2px 0 2px 12px; border-left:3px solid var(--bordo); }
+  .blocco-argomenti[open]{ border-left-color:var(--prugna); }
+  .blocco-argomenti > summary{ font-family:inherit; cursor:pointer; font-size:0.8rem; font-weight:600; color:var(--prugna); padding:3px 0; }
+  .lista-argomenti{ display:flex; flex-direction:column; gap:2px; margin:6px 0 4px; }
+  .riga-argomento{ display:flex; align-items:center; gap:6px; }
+  .riga-argomento .chk-argomento{ flex:0 0 auto; width:16px; height:16px; margin:0; accent-color:var(--prugna); cursor:pointer; }
+  .riga-argomento input.testo-argomento,
+  table.tabella-moduli .riga-argomento input.testo-argomento{
+    flex:1; width:auto; min-width:0; border:1px solid transparent; background:transparent; padding:4px 7px;
+    border-radius:5px; font-size:0.84rem; font-family:inherit; color:var(--inchiostro);
+  }
+  .riga-argomento input.testo-argomento:hover, .riga-argomento input.testo-argomento:focus,
+  table.tabella-moduli .riga-argomento input.testo-argomento:hover, table.tabella-moduli .riga-argomento input.testo-argomento:focus{
+    border-color:var(--bordo); background:#FFFDF8; outline:none;
+  }
+  .riga-argomento.non-fatto input.testo-argomento,
+  table.tabella-moduli .riga-argomento.non-fatto input.testo-argomento{ color:#A08868; }
+  .icona-arg{ background:none; border:none; cursor:pointer; color:var(--inchiostro-tenue); font-size:0.85rem; padding:2px 6px; border-radius:5px; }
+  .icona-arg:hover{ background:var(--carta-alt); color:var(--inchiostro); }
+  .icona-arg.elimina-arg:hover{ color:var(--ruggine); }
+  .azioni-argomenti{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:0.78rem; color:var(--inchiostro-tenue); margin:4px 0; }
+  .btn-arg{ padding:4px 10px; border-radius:6px; border:1px dashed var(--bordo); background:transparent; color:var(--inchiostro-tenue); cursor:pointer; font-size:0.78rem; font-family:inherit; }
+  .btn-arg:hover{ border-color:var(--prugna); color:var(--prugna); }
+  .btn-arg.forte{ border-style:solid; border-color:var(--prugna); color:var(--prugna); background:#fff; font-weight:600; }
+  .btn-arg.forte:hover{ background:var(--prugna); color:#fff; }
+  .incolla-argomenti{ margin:4px 0 2px; }
+  .incolla-argomenti > summary{ font-family:inherit; font-weight:400; cursor:pointer; font-size:0.78rem; color:var(--inchiostro-tenue); }
+  .incolla-argomenti textarea{ width:100%; margin:6px 0 2px; padding:7px 9px; border:1px solid var(--bordo); border-radius:6px; font-family:inherit; font-size:0.82rem; resize:vertical; background:#FFFDF8; color:var(--inchiostro); }
+  .incolla-argomenti select{ padding:4px 6px; border:1px solid var(--bordo); border-radius:5px; font-family:inherit; font-size:0.78rem; background:#fff; max-width:280px; }
+  .chk-gia{ display:inline-flex; align-items:center; gap:4px; }
+  .esito-arg{ color:var(--ruggine); }
+
   @media (max-width:720px){
     .app{ grid-template-columns:1fr; }
     .sidebar{ border-right:none; border-bottom:1px solid var(--bordo); }
@@ -390,6 +423,127 @@ function importaModuli(classe, testo, sostituisci, posizione){
   return nuovi;
 }
 
+
+// ---------- Argomenti dei moduli ----------
+// Ogni modulo ha un elenco di argomenti con una spunta: nei report escono solo quelli spuntati.
+let argomentiAperti = new Set();
+let focusArgomento = null;
+function pulisciRigaArgomento(r){
+  return r.replace(/^[\s\u2022\u00B7\-\u2013\u2014*]+/, '').replace(/^\d+[.)\]]\s*/, '').trim();
+}
+function argomentiSpuntati(m){
+  return (m.argomenti || []).filter(a => a.fatto && (a.testo || '').trim()).map(a => a.testo.trim().replace(/[.;]+$/, ''));
+}
+function copiaArgomenti(m, conSpunte){
+  return (m.argomenti || []).map(a => ({ id: idCasuale(), testo: a.testo, fatto: conSpunte ? !!a.fatto : false }));
+}
+function applicaFocusArgomento(){
+  if(!focusArgomento) return;
+  const el = document.querySelector('[data-arg="' + focusArgomento + '"]');
+  focusArgomento = null;
+  if(el) el.focus();
+}
+// cfg: { parola: 'previsti'|'svolti', titoloSpunta, ridisegna() }
+function bloccoArgomenti(m, cfg){
+  if(!Array.isArray(m.argomenti)) m.argomenti = [];
+  const det = document.createElement('details');
+  det.className = 'blocco-argomenti';
+  det.open = argomentiAperti.has(m.id);
+  det.addEventListener('toggle', ()=>{ if(det.open) argomentiAperti.add(m.id); else argomentiAperti.delete(m.id); });
+  const summary = document.createElement('summary');
+  const aggiornaConteggio = ()=>{
+    const tot = m.argomenti.length, fatti = m.argomenti.filter(a => a.fatto).length;
+    summary.textContent = tot ? 'Argomenti: ' + fatti + ' su ' + tot + ' ' + cfg.parola : 'Argomenti: nessuno ancora';
+  };
+  aggiornaConteggio();
+  det.appendChild(summary);
+
+  const lista = document.createElement('div');
+  lista.className = 'lista-argomenti';
+  m.argomenti.forEach((a, k)=>{
+    const r = document.createElement('div');
+    r.className = 'riga-argomento' + (a.fatto ? '' : ' non-fatto');
+    r.innerHTML = `
+      <input type="checkbox" class="chk-argomento" title="${cfg.titoloSpunta}" ${a.fatto ? 'checked' : ''}>
+      <input type="text" class="testo-argomento" placeholder="Scrivi l'argomento">
+      <button class="icona-arg" data-az="su" title="Sposta su">↑</button>
+      <button class="icona-arg" data-az="giu" title="Sposta giù">↓</button>
+      <button class="icona-arg elimina-arg" data-az="elimina" title="Elimina argomento">✕</button>`;
+    const testo = r.querySelector('.testo-argomento');
+    testo.value = a.testo || '';
+    testo.dataset.arg = a.id;
+    testo.addEventListener('input', e=>{ a.testo = e.target.value; salvaDati(); });
+    r.querySelector('.chk-argomento').addEventListener('change', e=>{
+      a.fatto = e.target.checked;
+      r.classList.toggle('non-fatto', !a.fatto);
+      salvaDati(); aggiornaConteggio();
+    });
+    r.querySelector('[data-az=su]').addEventListener('click', ()=>{
+      if(k > 0){ [m.argomenti[k-1], m.argomenti[k]] = [m.argomenti[k], m.argomenti[k-1]]; salvaDati(); cfg.ridisegna(); }
+    });
+    r.querySelector('[data-az=giu]').addEventListener('click', ()=>{
+      if(k < m.argomenti.length - 1){ [m.argomenti[k+1], m.argomenti[k]] = [m.argomenti[k], m.argomenti[k+1]]; salvaDati(); cfg.ridisegna(); }
+    });
+    r.querySelector('[data-az=elimina]').addEventListener('click', ()=>{
+      m.argomenti.splice(k, 1); salvaDati(); cfg.ridisegna();
+    });
+    lista.appendChild(r);
+  });
+  det.appendChild(lista);
+
+  const azioni = document.createElement('div');
+  azioni.className = 'azioni-argomenti';
+  azioni.innerHTML = `<button class="btn-arg" data-az="nuovo">+ aggiungi argomento</button>`
+    + (m.argomenti.length ? `<button class="btn-arg" data-az="tutti">spunta tutti</button><button class="btn-arg" data-az="nessuno">togli tutte le spunte</button>` : '');
+  azioni.querySelector('[data-az=nuovo]').addEventListener('click', ()=>{
+    const nuovo = { id: idCasuale(), testo: '', fatto: true };
+    m.argomenti.push(nuovo);
+    argomentiAperti.add(m.id);
+    focusArgomento = nuovo.id;
+    salvaDati(); cfg.ridisegna();
+  });
+  const btnTutti = azioni.querySelector('[data-az=tutti]');
+  if(btnTutti) btnTutti.addEventListener('click', ()=>{ m.argomenti.forEach(a => a.fatto = true); salvaDati(); cfg.ridisegna(); });
+  const btnNessuno = azioni.querySelector('[data-az=nessuno]');
+  if(btnNessuno) btnNessuno.addEventListener('click', ()=>{ m.argomenti.forEach(a => a.fatto = false); salvaDati(); cfg.ridisegna(); });
+  det.appendChild(azioni);
+
+  const inc = document.createElement('details');
+  inc.className = 'incolla-argomenti';
+  const opzioni = '<option value="fine">in fondo</option><option value="inizio">all\'inizio</option>'
+    + m.argomenti.map((a, k)=>{
+        const t = (a.testo || '').trim() || '(vuoto)';
+        return '<option value="' + a.id + '">dopo ' + (k+1) + '. ' + escapeHtml(t.length > 40 ? t.slice(0,40) + '…' : t) + '</option>';
+      }).join('');
+  inc.innerHTML = `
+    <summary>Incolla un elenco di argomenti</summary>
+    <textarea rows="5" placeholder="Uno per riga. Trattini e numeri all'inizio vengono tolti da soli."></textarea>
+    <div class="azioni-argomenti">
+      <span>Mettili</span>
+      <select class="sel-pos-arg">${opzioni}</select>
+      <label class="chk-gia"><input type="checkbox"> già spuntati</label>
+      <button class="btn-arg forte" data-az="incolla">Aggiungi</button>
+      <span class="esito-arg"></span>
+    </div>`;
+  inc.querySelector('[data-az=incolla]').addEventListener('click', ()=>{
+    const righe = inc.querySelector('textarea').value.split('\n').map(pulisciRigaArgomento).filter(r => r.length > 0);
+    if(!righe.length){ inc.querySelector('.esito-arg').textContent = 'Nessuna riga da aggiungere.'; return; }
+    const gia = inc.querySelector('.chk-gia input').checked;
+    const nuovi = righe.map(t => ({ id: idCasuale(), testo: t, fatto: gia }));
+    const pos = inc.querySelector('.sel-pos-arg').value;
+    if(pos === 'inizio') m.argomenti = nuovi.concat(m.argomenti);
+    else {
+      const idx = m.argomenti.findIndex(a => a.id === pos);
+      if(pos === 'fine' || idx < 0) m.argomenti = m.argomenti.concat(nuovi);
+      else m.argomenti.splice(idx + 1, 0, ...nuovi);
+    }
+    argomentiAperti.add(m.id);
+    salvaDati(); cfg.ridisegna();
+  });
+  det.appendChild(inc);
+  return det;
+}
+
 // ---------- Rendering ----------
 function render(){ renderSidebar(); renderMain(); }
 
@@ -469,7 +623,7 @@ function renderMain(){
           <option value="aggiungi">aggiungendoli ai moduli attuali</option>
           <option value="sostituisci">sostituendo i moduli attuali</option>
         </select>
-        <label class="check-date"><input type="checkbox" id="chk-copia-voci"> con gli approfondimenti</label>
+        <label class="check-date"><input type="checkbox" id="chk-copia-voci"> con gli approfondimenti e le spunte</label>
         <button class="btn-incolla" id="btn-copia-moduli">Copia i moduli</button>
       </div>` : ''}
     </details>
@@ -542,7 +696,8 @@ function renderMain(){
       const copiati = origine.moduli.map(m => ({
         id: idCasuale(),
         nome: m.nome,
-        voci: conVoci ? (m.voci||[]).map(v => ({ id: idCasuale(), testo: v.testo, data: v.data })) : []
+        voci: conVoci ? (m.voci||[]).map(v => ({ id: idCasuale(), testo: v.testo, data: v.data })) : [],
+        argomenti: copiaArgomenti(m, conVoci)
       }));
       if(sostituisci){
         const nVociAttuali = classe.moduli.reduce((s,m)=>s+m.voci.length, 0);
@@ -652,6 +807,11 @@ function renderModuli(classe){
     });
 
     const corpo = scheda.querySelector('.modulo-corpo');
+    corpo.appendChild(bloccoArgomenti(m, {
+      parola: 'svolti',
+      titoloSpunta: 'Spunta gli argomenti svolti: solo questi escono nella relazione',
+      ridisegna: ()=>{ const y = window.scrollY; render(); window.scrollTo(0, y); applicaFocusArgomento(); }
+    }));
     m.voci.forEach((v, j)=>{
       const voce = document.createElement('div');
       voce.className = 'voce-appro';
@@ -802,6 +962,11 @@ function esportaRelazioneRTF(classe, includiDate){
   classe.moduli.forEach((m, i)=>{
     rtf += '{\\pard\\b\\fs26\\sb200\\sa80 ' + (i+1) + '. ' + rtfEscape(m.nome) + '\\par}\n';
     const voci = m.voci.filter(v => (v.testo||'').trim().length>0);
+    const args = argomentiSpuntati(m);
+    if(args.length){
+      rtf += '{\\pard\\sa80 {\\i Argomenti:} ' + rtfEscape(args.join('; ')) + '.\\par}\n';
+      if(voci.length) rtf += '{\\pard\\sa40 {\\i Letture, attivit\\u224? e approfondimenti:}\\par}\n';
+    }
     if(voci.length > 0){
       const vociOrdinate = voci.slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
       vociOrdinate.forEach(v=>{
@@ -823,6 +988,11 @@ function esportaRelazioneTXT(classe, includiDate){
     txt += (i+1) + '. ' + m.nome + '\n';
     const voci = m.voci.filter(v => (v.testo||'').trim().length>0)
       .slice().sort((a,b)=> (a.data||'').localeCompare(b.data||''));
+    const args = argomentiSpuntati(m);
+    if(args.length){
+      txt += '   Argomenti: ' + args.join('; ') + '.\n';
+      if(voci.length) txt += '   Letture, attività e approfondimenti:\n';
+    }
     voci.forEach(v=>{
       const data = (includiDate && v.data) ? formattaDataEstesa(v.data) + ' – ' : '';
       txt += '   • ' + data + v.testo.trim() + '\n';
