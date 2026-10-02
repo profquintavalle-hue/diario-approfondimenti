@@ -574,6 +574,81 @@ function messaggioSoloArgomenti(r, nomeOrigine){
   return t;
 }
 
+
+// ---------- Moduli e argomenti dal Pianificatore ----------
+// Gli strumenti stanno sullo stesso sito, quindi il Diario può leggere i dati del Pianificatore;
+// in alternativa si carica il file di backup del Pianificatore.
+let pianiDaFile = null;
+function pianiPianificatore(){
+  if(pianiDaFile) return pianiDaFile;
+  try{
+    const raw = localStorage.getItem('pianificatore_moduli_dati_v1');
+    if(raw){ const s = JSON.parse(raw); if(s && Array.isArray(s.piani) && s.piani.length) return s.piani; }
+  }catch(e){}
+  return null;
+}
+function chiaveNomeClasse(n){ return normaNomeArg(n).split(' ').filter(Boolean).sort().join(' '); }
+function htmlDalPianificatore(classe){
+  const piani = pianiPianificatore();
+  if(!piani){
+    return `<span style="font-size:0.85rem;">Oppure prendi moduli e argomenti dal Pianificatore:</span>
+      <button class="btn-incolla secondario" id="btn-carica-pian">carica il file di backup del Pianificatore</button>
+      <input type="file" id="file-pian" accept=".json,application/json" style="display:none">`;
+  }
+  const chiave = chiaveNomeClasse(classe.nome);
+  const opz = piani.map(p => `<option value="${p.id}" ${chiaveNomeClasse(p.nome) === chiave ? 'selected' : ''}>${escapeHtml(p.nome)} (${(p.moduli||[]).length} moduli)</option>`).join('');
+  return `<span style="font-size:0.85rem;">Oppure prendi moduli e argomenti dal Pianificatore:</span>
+    <select id="sel-dal-pian" class="rapido-input" style="max-width:260px;">${opz}</select>
+    <label class="check-date"><input type="checkbox" id="chk-spunte-pian" checked> con le spunte</label>
+    <button class="btn-incolla" id="btn-dal-pian">Prendi dal Pianificatore</button>`;
+}
+function collegaDalPianificatore(classe){
+  const btnCarica = document.getElementById('btn-carica-pian');
+  if(btnCarica){
+    const inp = document.getElementById('file-pian');
+    btnCarica.addEventListener('click', ()=> inp.click());
+    inp.addEventListener('change', e=>{
+      const f = e.target.files && e.target.files[0]; if(!f) return;
+      const r = new FileReader();
+      r.onload = ev=>{
+        try{
+          const d = JSON.parse(ev.target.result);
+          const st = (d && d.stato) ? d.stato : d;
+          if(!st || !Array.isArray(st.piani)) throw new Error('formato');
+          pianiDaFile = st.piani; render();
+          document.getElementById('pannello-incolla').open = true;
+        }catch(err){ alert('Questo file non sembra un backup del Pianificatore.'); }
+      };
+      r.readAsText(f);
+    });
+    return;
+  }
+  const btn = document.getElementById('btn-dal-pian');
+  if(!btn) return;
+  btn.addEventListener('click', ()=>{
+    const piano = (pianiPianificatore() || []).find(p => p.id === document.getElementById('sel-dal-pian').value);
+    if(!piano) return;
+    const conSpunte = document.getElementById('chk-spunte-pian').checked;
+    // gli approfondimenti restano nei moduli che hanno lo stesso nome
+    const vecchi = {};
+    classe.moduli.forEach(m => { vecchi[normaNomeArg(m.nome)] = m; });
+    const nuovi = (piano.moduli || []).map(m => {
+      const v = vecchi[normaNomeArg(m.nome)];
+      if(v) delete vecchi[normaNomeArg(m.nome)];
+      return { id: idCasuale(), nome: m.nome, voci: v ? v.voci : [], argomenti: copiaArgomenti(m, conSpunte) };
+    });
+    const persi = Object.values(vecchi).reduce((s, m) => s + (m.voci || []).filter(x => (x.testo||'').trim()).length, 0);
+    let avviso = 'Sostituire i ' + classe.moduli.length + ' moduli di ' + classe.nome + ' con i ' + nuovi.length + ' moduli e i loro argomenti di ' + piano.nome + ' (Pianificatore)?';
+    avviso += persi ? '\n\nATTENZIONE: ' + (persi === 1 ? 'si perderà 1 approfondimento registrato' : 'si perderanno ' + persi + ' approfondimenti registrati') + ' in moduli che nel Pianificatore non ci sono.' : '\n\nGli approfondimenti già registrati restano nei moduli con lo stesso nome.';
+    if(!confirm(avviso)) return;
+    classe.moduli = nuovi;
+    moduliSelezionati.clear();
+    salvaDati(); render();
+    const nArg = nuovi.reduce((s, m) => s + m.argomenti.length, 0);
+    mostraNotaBackup(nuovi.length + ' moduli e ' + nArg + ' argomenti presi da ' + piano.nome + '.', 'ok');
+  });
+}
+
 // ---------- Rendering ----------
 function render(){ renderSidebar(); renderMain(); }
 
@@ -657,6 +732,9 @@ function renderMain(){
         <label class="check-date"><input type="checkbox" id="chk-copia-voci"> con gli approfondimenti e le spunte</label>
         <button class="btn-incolla" id="btn-copia-moduli">Copia i moduli</button>
       </div>` : ''}
+      <div class="riga-incolla-azioni" style="border-top:1px solid var(--bordo); padding-top:12px;">
+        ${htmlDalPianificatore(classe)}
+      </div>
     </details>
 
     <button class="aggiungi-modulo-manuale" id="btn-modulo-manuale">+ aggiungi un singolo modulo a mano</button>
@@ -718,6 +796,7 @@ function renderMain(){
     }
     mostraAvvisoIncolla(n);
   });
+  collegaDalPianificatore(classe);
   const btnCopia = document.getElementById('btn-copia-moduli');
   if(btnCopia){
     const copiaDa = (conVoci, sostituisci)=>{
