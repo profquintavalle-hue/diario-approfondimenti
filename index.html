@@ -543,6 +543,36 @@ function bloccoArgomenti(m, cfg){
   det.appendChild(inc);
   return det;
 }
+// Copia solo gli argomenti nei moduli con lo stesso nome, senza toccare lezioni, verifiche e approfondimenti.
+function normaNomeArg(s){
+  return (s || '').toLowerCase().replace(/[\u2019\u2018`\u00B4]/g, "'").replace(/[\u201C\u201D\u00AB\u00BB]/g, '"').replace(/\s+/g, ' ').trim();
+}
+function copiaSoloArgomenti(origine, destinazione, conSpunte){
+  let moduliToccati = 0, aggiunti = 0;
+  const senza = [];
+  destinazione.moduli.forEach(m => {
+    const o = origine.moduli.find(x => normaNomeArg(x.nome) === normaNomeArg(m.nome));
+    if(!o){ senza.push(m.nome); return; }
+    if(!Array.isArray(m.argomenti)) m.argomenti = [];
+    const presenti = new Set(m.argomenti.map(a => normaNomeArg(a.testo)));
+    let n = 0;
+    (o.argomenti || []).forEach(a => {
+      const chiave = normaNomeArg(a.testo);
+      if(!chiave || presenti.has(chiave)) return;
+      m.argomenti.push({ id: idCasuale(), testo: a.testo, fatto: conSpunte ? !!a.fatto : false });
+      presenti.add(chiave); n++;
+    });
+    if(n){ moduliToccati++; aggiunti += n; }
+  });
+  return { moduliToccati, aggiunti, senza };
+}
+function messaggioSoloArgomenti(r, nomeOrigine){
+  let t = r.aggiunti
+    ? (r.aggiunti === 1 ? 'Copiato 1 argomento' : 'Copiati ' + r.aggiunti + ' argomenti') + ' da ' + nomeOrigine + ' in ' + r.moduliToccati + (r.moduliToccati === 1 ? ' modulo.' : ' moduli.')
+    : 'Nessun argomento nuovo da copiare: i moduli corrispondenti li hanno già.';
+  if(r.senza.length) t += '\n\nQuesti moduli non hanno un modulo con lo stesso nome in ' + nomeOrigine + ', quindi non sono stati toccati:\n- ' + r.senza.join('\n- ');
+  return t;
+}
 
 // ---------- Rendering ----------
 function render(){ renderSidebar(); renderMain(); }
@@ -622,6 +652,7 @@ function renderMain(){
         <select id="sel-modo-copia" class="sel-posizione">
           <option value="aggiungi">aggiungendoli ai moduli attuali</option>
           <option value="sostituisci">sostituendo i moduli attuali</option>
+          <option value="solo-argomenti">solo gli argomenti, nei moduli con lo stesso nome</option>
         </select>
         <label class="check-date"><input type="checkbox" id="chk-copia-voci"> con gli approfondimenti e le spunte</label>
         <button class="btn-incolla" id="btn-copia-moduli">Copia i moduli</button>
@@ -693,6 +724,12 @@ function renderMain(){
       const id = document.getElementById('sel-copia-da').value;
       const origine = stato.classi.find(c => c.id === id);
       if(!origine){ document.getElementById('avviso-incolla').textContent = 'Scegli prima la classe da cui copiare.'; return; }
+      if(document.getElementById('sel-modo-copia').value === 'solo-argomenti'){
+        const ris = copiaSoloArgomenti(origine, classe, conVoci);
+        salvaDati(); render();
+        alert(messaggioSoloArgomenti(ris, origine.nome));
+        return;
+      }
       const copiati = origine.moduli.map(m => ({
         id: idCasuale(),
         nome: m.nome,
